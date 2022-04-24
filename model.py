@@ -29,84 +29,83 @@ class DilatedResidualLayer(nn.Module):
     def __init__(self, dilation, c_in, c_out):
         super(DilatedResidualLayer, self).__init__()
         self.conv_dilated = nn.Conv1d(c_in, c_out, 3, padding=dilation, dilation=dilation)
-        self.batchNorm = nn.BatchNorm1d(c_out)
-        self.relu = nn.ReLU()
         self.conv_1x1 = nn.Conv1d(c_out, c_out, 1)
 
     def forward(self, x):
         # Dilated convolution with residual connection
         out = self.conv_dilated(x)
-        out = self.batchNorm(out)
-        out = self.relu(out)
         out = self.conv_1x1(out)
         return out + x
     
 
-def torch_Summary_model(num_samples, num_feature_maps, num_layers, input_dim, num_classes):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # PyTorch v0.4.0  
+import json
+import h5py
+import numpy as np
+from torch.utils.data import DataLoader, TensorDataset
 
-    model = TConvNet(num_layers, num_feature_maps, num_classes, input_dim).to(device)
-    summary(model, input_size=(input_dim, num_samples))
 
-
-def train_validate_plot(device, epochs, learning_rate, val_test_percentage, batch_size, num_feature_maps, num_samples, num_layers, input_dim, num_classes):
-    # Model    
-    model = TConvNet(num_layers, num_feature_maps, num_classes, input_dim).to(device)
+def train_validate(device, epochs, learning_rate, num_layers, batch_size, num_channels):
+    with open('data/sets.json') as f:
+        sets = json.load(f)
     
-    # Random data
-    train_x = torch.randn(batch_size, input_dim, num_samples, device=device)
-    train_y = torch.randint(0, num_classes, (batch_size, num_samples), device=device)
-    val_x = torch.randn(batch_size, input_dim, int(num_samples * (val_test_percentage / 100)), device=device)
-    val_y = torch.randint(0, num_classes, (batch_size, int(num_samples * (val_test_percentage / 100))), device=device)
+    # avds000-lab010-01 as train data
+    train_y = sets['train']["avds000-lab010-01"]
+    train_y = np.array(train_y)
+    train_y = torch.from_numpy(train_y).to(device)
 
+    with h5py.File('data/roi_mouth/avds000-lab010-01.h5', 'r') as f:
+        train_x = f['data']
+        train_x = np.array(train_x)
+        train_x = torch.from_numpy(train_x).to(device)
+        train_x = train_x.view(train_x.shape[0], -1)
+        # reduce train_x dimension by 2
+
+    val_y = sets['validation']["avds012-lab010-01"]
+    val_y = np.array(val_y)
+    val_y = torch.from_numpy(val_y).to(device)
+
+    with h5py.File('data/roi_mouth/avds012-lab010-01.h5', 'r') as f:
+        val_x = f['data']
+        val_x = np.array(val_x)
+        val_x = torch.from_numpy(val_x).to(device)
+        val_x = val_x.view(val_x.shape[0], -1)
+        # reduce val_x dimension by 2
+    
+
+
+    # model
+    model = TConvNet(num_layers, num_channels, train_y.shape[0], train_x.shape[1])
+    
     # Loss and Optimizer loss cross entropy
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    train_losses = []
-    val_losses = []
-     
+    # Train the Model
     for epoch in range(epochs):
-        # Training
-        optimizer.zero_grad()
-        outputs = model(train_x)
-        loss = criterion(outputs, train_y)
-        loss.backward()
-        optimizer.step()
+        for x, y in next_batch(train_x, train_y, batch_size):
+            # Forward + Backward + Optimize
+            optimizer.zero_grad()
+            outputs = model(x)
+            loss = criterion(outputs, y)
+            loss.backward()
+            optimizer.step()
+        print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, epochs, loss.item()))
 
-        # Validation
-        val_outputs = model(val_x)
-        val_loss = criterion(val_outputs, val_y)
-        train_losses.append(loss.item())
-        val_losses.append(val_loss.item())
-
-        
-    # Save the model
-    torch.save(model.state_dict(), 'model.ckpt')
     
+        
 
-     # plot the training loss and validation loss
-    import matplotlib.pyplot as plt
-    plt.plot(train_losses, label='Training loss')
-    plt.plot(val_losses, label='Validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig('loss.png')
-    plt.show()
+
+def next_batch(x, y, batch_size):
+    for i in range(0, x.shape[0], batch_size):
+        yield x[i:i+batch_size], y[i:i+batch_size]
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     epochs = 1000
     learning_rate = 1e-3
-    val_test_percentage = 25 # pertentage between train and validation set
-    batch_size = 32 # number of samples per batch
-    
-    num_samples = 10000 # number of samples (Time steps)
-    num_feature_maps = 4 # channel number
-    num_layers = 2 # number of layers in the network
-    input_dim = 16 # input dimensions
-    num_classes = 2 # output classes 
+    batch_size = 4
+    num_layers = 1 # number of layers in the network
+    num_channels = 16 # number of feature maps
 
-    train_validate_plot(device, epochs, learning_rate, val_test_percentage, batch_size, num_feature_maps, num_samples, num_layers, input_dim, num_classes)
-    torch_Summary_model(num_samples, num_feature_maps, num_layers, input_dim, num_classes)
+    train_validate(device, epochs, learning_rate, num_layers, batch_size, num_channels)
+
