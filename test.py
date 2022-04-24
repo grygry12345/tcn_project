@@ -1,16 +1,11 @@
-"""
-Created by Arman Savran at 2022-04-16
-"""
-
-from statistics import mode
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-import glob
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 import plots
+from torch.utils.data import DataLoader, Dataset
 
 def get_relative_path(data, directory):
     keys = list(data.keys())
@@ -52,11 +47,8 @@ def combine_dataset():
             print("iteration: " + str(i) + "/" + str(len(train_list_paths)))
     
     print('train_x shape: ', train_x.shape)
-
-# if __name__ == '__main__':
     
 
-from torch.utils.data import DataLoader, Dataset
 
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', transform=None, group='train', file_name='avds000-lab010-01'):
@@ -100,7 +92,7 @@ class HDF5Dataset(Dataset):
                 end = int(segments[1] * 100)
                 self.labels[start:end] = 1
             else:
-                self.labels = np.zeros(len(self.data))
+                self.labels = np.zeros(len(self.data))    
 
     
     def __len__(self):
@@ -115,7 +107,6 @@ class HDF5Dataset(Dataset):
 
         
     
-    
 def plot_axample():
     with h5py.File('data/roi_mouth/avds000-lab010-01.h5', 'r') as f:
         train_x = f['data']
@@ -126,13 +117,42 @@ def plot_axample():
     plt.show()
 
 from torch.utils.data import DataLoader
-from torchvision.transforms import ToTensor
+
+import model as m  
+import torch.nn as nn
 
 if __name__ == '__main__':
-    training_data = HDF5Dataset(file_path='data', group='train', file_name='avds000-lab010-01')
-    training_loader = DataLoader(training_data, batch_size=4, shuffle=True)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    batch_size = 4
+    lr = 1e-3
+    epochs = 1000
 
-    for X, y in training_loader:
-        print(X.shape)
-        print(y.shape)
-        break
+    training_data = HDF5Dataset(file_path='data', group='train', file_name='avds000-lab010-01')
+    training_loader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+    frame_number = training_loader.dataset.data.shape[0]
+    frame_features = training_loader.dataset.data.shape[1]
+
+    model = m.DilatedResidualLayer(channels=4, output=4, dim=frame_number).to(device)
+    
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    model.train()
+    for epoch in range(epochs):   
+        print(f"Epoch {epoch+1}\n-------------------------------")
+        size = len(training_loader.dataset)
+        model.train()
+        for batch, (X, y) in enumerate(training_loader):
+            X, y= X.to(device), y.to(device)
+
+            pred = model(X)
+            loss = loss_fn(pred, y)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if batch % 10 == 0:
+                loss, current = loss.item(), batch * len(X)
+                print(f"\rBatch {batch+1}/{len(training_loader)} \
+                | Loss: {loss:.4f} | {current*100/size:.2f}%", end="")
