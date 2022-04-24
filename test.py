@@ -18,7 +18,7 @@ def get_relative_path(data, directory):
         keys[i] = directory + '/' + keys[i] + '.h5'
     return keys
 
-def test():
+def combine_dataset():
     directory = 'data/roi_mouth'
     height = 48
     width = 64
@@ -63,7 +63,7 @@ class HDF5Dataset(Dataset):
         self.file_path = file_path
         self.file_name = file_name
         self.transform = transform
-        self.mode = group
+        self.group = group
         self.data = None
         self.labels = None
         self.__load_data()
@@ -76,18 +76,42 @@ class HDF5Dataset(Dataset):
         with h5py.File(data_file_path, 'r') as f:
             self.data = f['data']
             self.data = np.array(self.data)
+            self.data = self.data.reshape(self.data.shape[0], self.data.shape[1] * self.data.shape[2] * self.data.shape[3])
+
+
 
     def __load_labels(self):
         label_file_path = self.file_path + '/sets.json'
         # labels
         with open(label_file_path, 'r') as f:
-            segment = json.load(f)
-            if self.mode == 'train':
-                segment = self.labels['train'][self.file_name]
-            elif self.mode == 'val':
-                segment = self.labels['validation'][self.file_name]
-            elif self.mode == 'test':
-                segment = self.labels['test'][self.file_name]
+            segments = json.load(f)
+            if self.group == 'train':
+                segments = segments['train'][self.file_name]
+            elif self.group == 'val':
+                segments = segments['validation'][self.file_name]
+            elif self.group == 'test':
+                segments = segments['test'][self.file_name]
+            else:
+                raise Exception('Invalid mode')
+            
+            if (segments[0] != -1 and segments[1] != -1):
+                self.labels = np.zeros(len(self.data))
+                start = int(segments[0] * 100)
+                end = int(segments[1] * 100)
+                self.labels[start:end] = 1
+            else:
+                self.labels = np.zeros(len(self.data))
+
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        sample = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            sample = self.transform(sample)
+        return sample, label
 
         
     
@@ -100,6 +124,15 @@ def plot_axample():
     print(train_x.shape)
     plots.plot_timeseq(train_x, 10, [1.1624487967229904, 3.7137179979518695], 'test')
     plt.show()
-            
+
+from torch.utils.data import DataLoader
+from torchvision.transforms import ToTensor
+
 if __name__ == '__main__':
-    plot_axample()
+    training_data = HDF5Dataset(file_path='data', group='train', file_name='avds000-lab010-01')
+    training_loader = DataLoader(training_data, batch_size=4, shuffle=True)
+
+    for X, y in training_loader:
+        print(X.shape)
+        print(y.shape)
+        break
