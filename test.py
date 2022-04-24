@@ -132,7 +132,7 @@ if __name__ == '__main__':
     frame_number = training_loader.dataset.data.shape[0]
     frame_features = training_loader.dataset.data.shape[1]
 
-    model = m.DilatedResidualLayer(channels=4, output=4, dim=frame_number).to(device)
+    model = m.DilatedResidualLayer(channels=4, output=1, dim=frame_features).to(device)
     
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -146,7 +146,8 @@ if __name__ == '__main__':
             X, y= X.to(device), y.to(device)
 
             pred = model(X)
-            loss = loss_fn(pred, y)
+            loss = loss_fn(pred.squeeze(), y.squeeze())
+            
 
             optimizer.zero_grad()
             loss.backward()

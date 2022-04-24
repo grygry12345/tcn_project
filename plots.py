@@ -5,6 +5,7 @@ Created by Arman Savran at 2022-04-16
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm as mpcm
+import h5py
 
 
 def plot_est_im(eventspiketensor, frame_size_ms, idx):
@@ -31,3 +32,11 @@ def plot_timeseq(eventspiketensor, frame_size_ms, segment, name):
     ax.set_ylim((0, max_y))
     return fig, ax
 
+def plot_axample():
+    with h5py.File('data/roi_mouth/avds000-lab010-01.h5', 'r') as f:
+        train_x = f['data']
+        train_x = np.array(train_x)
+    
+    print(train_x.shape)
+    plot_timeseq(train_x, 10, [1.1624487967229904, 3.7137179979518695], 'test')
+    plt.show()
