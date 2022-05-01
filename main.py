@@ -8,7 +8,7 @@ from dataset import HDF5Dataset
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 4
+    batch_size = 32
     lr = 1e-3
     epochs = 100
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     frame_number = training_loader.dataset.data.shape[0]
     frame_features = training_loader.dataset.data.shape[1]
 
-    model = m.DilatedResidualLayer(channels=4, output=1, dim=frame_features).to(device)
+    model = m.DilatedResidualLayer(channels=4, output=5, dim=frame_features).to(device)
     
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)

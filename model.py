@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import copy
+import torch.nn.functional as F
 
 # Temporal Convolutional Network only one refinment layer
 class DilatedResidualLayer(nn.Module):
@@ -21,7 +21,7 @@ class DilatedResidualLayer(nn.Module):
         residual = self.shortcut(x)
         
         out = self.conv_input(x)
-        out = self.conv_dilated(out)
+        out = F.relu(self.conv_dilated(out))
         out = self.conv_1x1(out) + residual
 
         return out

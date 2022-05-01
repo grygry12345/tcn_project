@@ -14,7 +14,7 @@ class HDF5Dataset(Dataset):
         self.__load_data()
         self.__load_labels()
 
-    def __load_data(self):
+    def __load_data(self): # TODO: add for loop for reading all train data
         data_file_path = self.file_path + '/roi_mouth/' + self.file_name + '.h5'
 
         # data
