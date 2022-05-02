@@ -3,6 +3,8 @@ import h5py
 import json
 import numpy as np
 
+from eray.project import t_frames
+
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', transform=None, group='train', file_name='avds000-lab010-01'):
         self.file_path = file_path
@@ -14,19 +16,20 @@ class HDF5Dataset(Dataset):
         self.__load_data()
         self.__load_labels()
 
-    def __load_data(self): # TODO: add for loop for reading all train data
+    def __load_data(self): # TODO: add for loop for reading all data
         data_file_path = self.file_path + '/roi_mouth/' + self.file_name + '.h5'
 
         # data
         with h5py.File(data_file_path, 'r') as f:
             self.data = f['data']
             self.data = np.array(self.data)
-            self.data = self.data.reshape(self.data.shape[0], self.data.shape[1] * self.data.shape[2] * self.data.shape[3])
+            self.data = self.data.reshape(self.data.shape[0], -1)
 
 
 
-    def __load_labels(self):
+    def __load_labels(self, frame_size_ms=10): # ? Maybe add frame_size_ms for the labels
         label_file_path = self.file_path + '/sets.json'
+
         # labels
         with open(label_file_path, 'r') as f:
             segments = json.load(f)
