@@ -1,2 +1,2 @@
-# Temporal Convolutional Network project for voice detection
+# Temporal Convolutional Network project for visual voice detection
 
