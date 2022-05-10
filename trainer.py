@@ -27,7 +27,7 @@ class Trainer(nn.Module):
             y = y.to(self.device)
 
             # Compute prediction error
-            pred = self.model(X).to(dtype=torch.float64)
+            pred = self.model(X)
 
             loss = self.loss_fn(pred.squeeze(), y.squeeze())
 
@@ -51,7 +51,7 @@ class Trainer(nn.Module):
         size = len(self.val_dataloader.dataset)
         num_batches = len(self.val_dataloader)
         self.model.eval()
-        i, val_loss, correct = 0, 0, 0
+        val_loss, correct = 0, 0
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
@@ -60,9 +60,10 @@ class Trainer(nn.Module):
 
                 # Compute prediction error
                 pred = self.model(X)
-                pred = pred.squeeze()
-
+                
+                pred = pred.squeeze(-1)
                 val_loss += self.loss_fn(pred, y).item()
+
                 correct += (pred.argmax(1) == y).type(torch.FloatTensor).sum().item()
         val_loss /= num_batches
         correct /= size
@@ -78,9 +79,11 @@ class Trainer(nn.Module):
             print(f"Epoch {t+1}\n-------------------------------")
             train_loss = self._step_train()
             val_loss, correct = self._step_val()
-            print("Train error:", train_loss)
-            print("Val error:", val_loss)
+            print("Train loss:", train_loss)
+            print("Val loss:", val_loss)
             # double digit precision
             print("Val accuracy:", round(correct, 2) * 100, "%")
             print("\n")
+        
+    
 
