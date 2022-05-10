@@ -85,7 +85,27 @@ class HDF5Dataset(Dataset):
     def create_one_data(self, file_name):
         with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
             self.data = np.array(f['data'])
-            
+            self.data = self.data.reshape(self.data.shape[0], -1)
+    
+    def create_one_labels(self, file_name, group):
+        with open(self.file_path + '/sets.json', 'r') as l:
+            labels = json.load(l)
+            if group == 'train':
+                segments = labels['train'][file_name]
+            elif group == 'val':
+                segments = labels['validation'][file_name]
+            elif group == 'test':
+                segments = labels['test'][file_name]
+            start = int(segments[0] * 100)
+            end = int(segments[1] * 100)
+            if (segments[0] != -1 and segments[1] != -1):
+                self.labels = np.zeros(self.data.shape[0])
+                self.labels[start:end] = 1
+            else:
+                self.labels = np.zeros(self.data.shape[0])
+
+
+                       
 
     def create_labels(self, frame_size_ms=10): # ? Maybe add frame_size_ms for the labels
         label_file_path = self.file_path + '/sets.json'
