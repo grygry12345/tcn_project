@@ -2,6 +2,7 @@ from numpy import dtype
 import torch.nn as nn 
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 # TODO: design device selection and add default optimizer and loss function
 class Trainer(nn.Module):
@@ -14,11 +15,11 @@ class Trainer(nn.Module):
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.device = device
-        self.printBatch = printBatch
     
 
     def _step_train(self):
-        train_loss = 0.0
+        train_loss, train_correct = 0.0, 0.0
+        num_batches = len(self.train_dataloader)
         size = len(self.train_dataloader.dataset)
         self.model.train()
         for batch, (X, y) in enumerate(self.train_dataloader):
@@ -29,7 +30,9 @@ class Trainer(nn.Module):
             # Compute prediction error
             pred = self.model(X)
 
-            loss = self.loss_fn(pred.squeeze(), y.squeeze())
+            loss = self.loss_fn(pred.squeeze(), y)
+            train_correct += (pred.argmax(1) == y).type(torch.FloatTensor).sum().item()
+
 
             # Backpropagation
             self.optimizer.zero_grad()
@@ -37,21 +40,18 @@ class Trainer(nn.Module):
             self.optimizer.step()
 
             train_loss += loss.item()
-
-            # print batch progress 
-            if batch % 100 == 0 and self.printBatch == True:
-                print(f"Batch {batch}/{len(self.train_dataloader)}", end="\r")
         
-        train_loss /= size
+        train_loss /= num_batches
+        train_correct /= size
 
-        return train_loss
+        return train_loss, train_correct
             
     
     def _step_val(self):
         size = len(self.val_dataloader.dataset)
         num_batches = len(self.val_dataloader)
         self.model.eval()
-        val_loss, correct = 0, 0
+        val_loss, val_correct = 0, 0
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
@@ -64,26 +64,28 @@ class Trainer(nn.Module):
                 pred = pred.squeeze(-1)
                 val_loss += self.loss_fn(pred, y).item()
 
-                correct += (pred.argmax(1) == y).type(torch.FloatTensor).sum().item()
+                val_correct += (pred.argmax(1) == y).type(torch.FloatTensor).sum().item()
         val_loss /= num_batches
-        correct /= size
+        val_correct /= size
 
-        return val_loss, correct
+        return val_loss, val_correct
 
 
 
 
 
     def train(self):
+        
+
+        writer = SummaryWriter(f'run/test_{self.model.__class__.__name__}')
         for t in range(self.epochs):
-            print(f"Epoch {t+1}\n-------------------------------")
-            train_loss = self._step_train()
-            val_loss, correct = self._step_val()
-            print("Train loss:", train_loss)
-            print("Val loss:", val_loss)
-            # double digit precision
-            print("Val accuracy:", round(correct, 2) * 100, "%")
-            print("\n")
+            train_loss, train_correct = self._step_train()
+            val_loss, val_correct = self._step_val()
+            writer.add_scalar('train_loss', train_loss, t)
+            writer.add_scalar('train_acc', train_correct, t)
+            writer.add_scalar('val_loss', val_loss, t)
+            writer.add_scalar('val_acc', val_correct, t)
+
         
     
 

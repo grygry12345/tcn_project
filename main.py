@@ -10,10 +10,9 @@ import trainer as t
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 64
+    batch_size = 128
+    epochs = 50
     lr = 1e-3
-    epochs = 100
-    printBatch = True
 
     onlyOneFile = False
     file_train = "avds000-lab010-01"
@@ -70,7 +69,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     trainer = t.Trainer(model, loss_fn, optimizer, epochs=epochs, train_dataloader=training_loader, \
-                        val_dataloader=val_loader, printBatch=printBatch, device=device)
+                        val_dataloader=val_loader, device=device)
     trainer.train()
            
         
