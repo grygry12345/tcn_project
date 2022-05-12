@@ -15,6 +15,15 @@ class HDF5Dataset(Dataset):
         self.data_path = data_path
         self._frame_lengths = {} # needed for label concatenation
 
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        sample = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            sample = self.transform(sample)
+        return sample, label
 
     def _concatenate_frames(self, sets, group):
         i = 0
@@ -81,7 +90,22 @@ class HDF5Dataset(Dataset):
                
             # reshape after concanating
             self.data = self.data.reshape(self.data.shape[0], -1)
+    
+    def create_labels(self, frame_size_ms=10): # ? Maybe add frame_size_ms for the labels
+        label_file_path = self.file_path + '/sets.json'
 
+        # labels
+        with open(label_file_path, 'r') as l:
+            segments = json.load(l)
+            if self.group == 'train':
+                self._concatenate_labels(segments, 'train')
+            elif self.group == 'val':
+                self._concatenate_labels(segments, 'validation')
+            elif self.group == 'test':
+                self._concatenate_labels(segments, 'test')
+            else:
+                raise Exception('Invalid group')
+  
     def create_one_data(self, file_name):
         with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
             self.data = np.array(f['data'])
@@ -103,37 +127,16 @@ class HDF5Dataset(Dataset):
                 self.labels[start:end] = 1
             else:
                 self.labels = np.zeros(self.data.shape[0])
-
-
                        
 
-    def create_labels(self, frame_size_ms=10): # ? Maybe add frame_size_ms for the labels
-        label_file_path = self.file_path + '/sets.json'
 
-        # labels
-        with open(label_file_path, 'r') as l:
-            segments = json.load(l)
-            if self.group == 'train':
-                self._concatenate_labels(segments, 'train')
-            elif self.group == 'val':
-                self._concatenate_labels(segments, 'validation')
-            elif self.group == 'test':
-                self._concatenate_labels(segments, 'test')
-            else:
-                raise Exception('Invalid group')  
 
     # save data and labels to file
-    def save_varibles(self, file_path):
-        np.save('data/var/data.npy', self.data)
-        np.save('data/var/labels.npy', self.labels)
+    def save_varibles(self, file_path, file_name_data, file_name_label):
+        np.save(file_path + file_name_data, self.data) # data
+        np.save(file_path + file_name_label, self.labels) # labels
+    
+    def load_variables(self, file_path, file_name_data, file_name_label):
+        self.data = np.load(file_path + file_name_data + '.npy') # data
+        self.labels = np.load(file_path + file_name_label + '.npy') # labels
 
-    
-    def __len__(self):
-        return len(self.data)
-    
-    def __getitem__(self, idx):
-        sample = self.data[idx]
-        label = self.labels[idx]
-        if self.transform:
-            sample = self.transform(sample)
-        return sample, label
