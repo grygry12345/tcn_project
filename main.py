@@ -2,19 +2,21 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import os
-import numpy as np
-
 import model as m  
 from dataset import HDF5Dataset
 import trainer as t
+import eval
+
+
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    batch_size = 64
+    batch_size = 512
     epochs = 20
-    lr = 1e-3
+    lr = 1e-6
+    num_channel = 2
 
-    onlyOneFile = True
+    onlyOneFile = False
     file_train = "avds000-lab010-01"
     file_val = "avds012-lab010-01"
     file_test = "avds014-lab010-01"
@@ -71,10 +73,10 @@ if __name__ == '__main__':
     val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_data, shuffle=True)
 
-    # frame_number = training_loader.dataset.data.shape[0]
+    # frame_features_train = training_loader.dataset.data[0].shape[1]
     frame_features_train = training_loader.dataset.data.shape[1]
 
-    model = m.DilatedResidualLayer(channels=2, output=10, dim=frame_features_train).to(device)
+    model = m.DilatedResidualLayer(channels=num_channel, output=1, dim=frame_features_train).to(device)
     
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -82,8 +84,7 @@ if __name__ == '__main__':
     trainer = t.Trainer(model, loss_fn, optimizer, epochs=epochs, train_dataloader=training_loader, \
                         val_dataloader=val_loader, test_dataloader=test_loader, device=device)
     trainer.train()
+    print('Training complete.')
 
-    # Predict on test data
-    trainer.predict()
-           
-        
+    eval = eval.Eval(model, test_loader, device)
+    eval.eval()

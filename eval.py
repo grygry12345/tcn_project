@@ -5,6 +5,15 @@ import torch
 from torch.utils.data import DataLoader
 import datetime
 
+# Referance : https://github.com/yabufarha/ms-tcn/blob/master/eval.py
+# Y. Abu Farha and J. Gall.
+# MS-TCN: Multi-Stage Temporal Convolutional Network for Action Segmentation.
+# In IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2019
+
+# S. Li, Y. Abu Farha, Y. Liu, MM. Cheng,  and J. Gall.
+# MS-TCN++: Multi-Stage Temporal Convolutional Network for Action Segmentation.
+# In IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI), 2020
+
 class Eval():
     def __init__(self, model, test_dataloader: DataLoader, device):
         self.model = model
@@ -60,7 +69,7 @@ class Eval():
         return labels, starts, ends
 
     
-    def _edit_score(self, recognized, ground_truth, norm=True, bg_class=[0]):
+    def _edit_score(self, recognized, ground_truth, norm=True, bg_class=[0]): # ! not sure it works
         P, _, _ = self._get_labels_start_end_time(recognized, bg_class)
         Y, _, _ = self._get_labels_start_end_time(ground_truth, bg_class)
         return self._levenstein(P, Y, norm)
@@ -84,9 +93,6 @@ class Eval():
             # convert intersection to torch array device cuda
             intersection = torch.from_numpy(intersection).to(self.device)
             union = torch.from_numpy(union).to(self.device)
-
-            # IoU = (1.0*intersection / union)*([p_label[j] == y_label[x] for x in range(len(y_label))]) # ! index problem
-
 
             # for x in range(len(y_label)): # ! need faster implementation
             #     if p_label[j] == y_label[x]:
@@ -147,4 +153,4 @@ class Eval():
                 self._writer.add_text(f'f1_score_{overlap[i]}', f'{f1}', 2)
                 print(f"F1 score {overlap[i]} completed: {f1}", end="\r")
                 # empty line
-                print("\n")
+                print()
