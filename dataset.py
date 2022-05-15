@@ -1,8 +1,9 @@
+from lib2to3.pytree import Node
 from torch.utils.data import Dataset
 import h5py
 import json
 import numpy as np
-
+import pickle
 # from eray.project import t_frames
 
 class HDF5Dataset(Dataset):
@@ -13,13 +14,14 @@ class HDF5Dataset(Dataset):
         self.data = None
         self.labels = None
         self.data_path = data_path
-        self._frame_lengths = {} # needed for label concatenation
+        # self._frame_segments = None
+        self._frame_lengths = {}
 
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
-        sample = self.data[idx]
+        sample = self.data[idx] 
         label = self.labels[idx]
         if self.transform:
             sample = self.transform(sample)
@@ -27,25 +29,44 @@ class HDF5Dataset(Dataset):
 
     def _concatenate_frames(self, sets, group):
         i = 0
-        for file_name in sets[group].keys():
-            
+        total_frame = 0
+        firstTime = True
+        file_list = sets[group].keys()
+        for file_name in file_list:
             with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
                 d = f['data']
                 d = np.array(d)
+                d = d.reshape(d.shape[0], -1)
 
-                # "file_name" : frame_length
+                # video_length = d.shape[0]         
+                # if (firstTime):
+                #     frame_start = total_frame
+                #     firstTime = False 
+                # else:
+                #     frame_start = total_frame + 1
+
+                
+                # frame_end = video_length + total_frame
+                # total_frame += video_length
+
                 self._frame_lengths[file_name] = d.shape[0]
-                # append d to self.data
+                    
                 if self.data is None:
                     self.data = d
+                    # self.data = {0: d}
+                    # self._frame_segments = [[frame_start, frame_end]]
                 else:
                     self.data = np.concatenate((self.data, d))
                     
+                    # data dictinoary append
+                    # self.data[i] = d
+                    # self._frame_segments = np.append(self._frame_segments, [[frame_start, frame_end]], axis=0)
+                    
             # progress bar
             i += 1
-            print('\r', end='')
-            print('Creating data {}/{}'.format(i, len(sets[group])), end='')
-            print('\r', end='')
+
+            print('Creating data {}/{}'.format(i, len(sets[group])), end='\r')
+
 
     def _concatenate_labels(self, sets, group):
         i = 0
@@ -58,8 +79,13 @@ class HDF5Dataset(Dataset):
                 start = int(segments[0] * 100)
                 end = int(segments[1] * 100)
                 l[start:end] = 1
+                # start = segments[0]
+                # end = segments[1]
+                # l = [[start, end]]
+
             else:
                 l = np.zeros(frame_length)
+                #l = [[-1, -1]]
             
             # append l to self.labels
             if self.labels is None:
@@ -69,9 +95,9 @@ class HDF5Dataset(Dataset):
             
             # progress bar
             i += 1
-            print('\r', end='')
-            print('Creating labels {}/{}'.format(i, len(sets[group])), end='')
-            print('\r', end='')
+
+            print('Creating labels {}/{}'.format(i, len(sets[group])), end='\r')
+
 
     def create_data(self):
         label_file_path = self.file_path + '/sets.json'
@@ -89,7 +115,7 @@ class HDF5Dataset(Dataset):
                 raise Exception('Invalid group')
                
             # reshape after concanating
-            self.data = self.data.reshape(self.data.shape[0], -1)
+            # self.data = self.data.reshape(self.data.shape[0], -1)
     
     def create_labels(self, frame_size_ms=10): # ? Maybe add frame_size_ms for the labels
         label_file_path = self.file_path + '/sets.json'
@@ -120,6 +146,8 @@ class HDF5Dataset(Dataset):
                 segments = labels['validation'][file_name]
             elif group == 'test':
                 segments = labels['test'][file_name]
+            
+            
             start = int(segments[0] * 100)
             end = int(segments[1] * 100)
             if (segments[0] != -1 and segments[1] != -1):
@@ -127,16 +155,26 @@ class HDF5Dataset(Dataset):
                 self.labels[start:end] = 1
             else:
                 self.labels = np.zeros(self.data.shape[0])
+            
+            #if (segments[0] != -1 and segments[1] != -1):
+            #     self.labels = [-1, -1]
+            # else:
+            #     start = segments[0]
+            #     end = segments[1]
+            #     self.labels = [start, end]
                        
-
+    def load_variables(self, file_path, file_name_data, file_name_label):
+        self.data = np.load(file_path + file_name_data + '.npy') # data
+        # with open(file_path + file_name_data + '.pkl', 'rb') as f:
+        #     self.data = pickle.load(f)
+        self.labels = np.load(file_path + file_name_label + '.npy') # labels
 
 
     # save data and labels to file
     def save_varibles(self, file_path, file_name_data, file_name_label):
         np.save(file_path + file_name_data, self.data) # data
+        # with open(file_path + file_name_data + '.pkl' , 'wb') as f:
+        #     pickle.dump(self.data, f)
         np.save(file_path + file_name_label, self.labels) # labels
-    
-    def load_variables(self, file_path, file_name_data, file_name_label):
-        self.data = np.load(file_path + file_name_data + '.npy') # data
-        self.labels = np.load(file_path + file_name_label + '.npy') # labels
+
 
