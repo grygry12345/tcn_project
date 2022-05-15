@@ -2,8 +2,8 @@ import torch.nn as nn
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
-
+import datetime
+import numpy as np
 # TODO: design device selection and add default optimizer and loss function
 class Trainer(nn.Module):
     def __init__(self, model, loss_fn, optimizer, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, test_dataloader: DataLoader, device: str = "cuda:0", printBatch: bool = False):
@@ -16,7 +16,8 @@ class Trainer(nn.Module):
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
         self.device = device
-        self._writer = SummaryWriter(f'run/{self.model.__class__.__name__}')
+        # Summary writer with date and model name
+        self._writer = SummaryWriter(f'runs/{model.__class__.__name__}_{datetime.datetime.now()}')
     
 
     def _step_train(self):
@@ -70,41 +71,15 @@ class Trainer(nn.Module):
 
         return val_loss, val_correct
 
-
-
-
-
     def train(self):
         for t in range(self.epochs):
+            print(f"Epoch {t}/{self.epochs}", end="\r")
             train_loss = self._step_train()
             val_loss, val_correct = self._step_val()
             self._writer.add_scalar('train_loss', train_loss, t)
             self._writer.add_scalar('val_loss', val_loss, t)
             self._writer.add_scalar('val_acc', val_correct, t)
-
-        
-    def predict(self): # ! predict implemented but maybe implemented wrong
-        
-        self.model.eval()
-        size = self.test_dataloader.dataset
-        with torch.no_grad():
-            correct = 0
-            for _, (X, y) in enumerate(self.test_dataloader):
-                X = X.to(self.device)
-                y = y.type(torch.LongTensor)
-                y = y.to(self.device)
-
-                true_target = y
-
-                pred = self.model(X)
-                pred = pred.squeeze(-1)
-                pred_target = pred.argmax(1)
-
-                correct += (pred_target == true_target).type(torch.FloatTensor).sum().item()
-            acc = correct / len(size)
-            self._writer.add_text('accuracy', f'{acc}', 0)
-        
-
+        print()
 
 
 
