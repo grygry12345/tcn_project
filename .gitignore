@@ -1,4 +1,4 @@
-loss.png
+*.png
 model.ckpt
 .vscode
 data
