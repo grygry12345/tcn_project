@@ -23,7 +23,7 @@ class Eval():
         self._preds = np.empty((0))
         self._gts = np.empty((0))
 
-    def _levenstein(self, p, y, norm=False): # ! need faster implementation
+    def _levenstein(self, p, y, norm=False):
         m_row = len(p)
         n_col = len(y)
         D = np.zeros([m_row+1, n_col+1], np.float)
@@ -94,9 +94,6 @@ class Eval():
             intersection = torch.from_numpy(intersection).to(self.device)
             union = torch.from_numpy(union).to(self.device)
 
-            # for x in range(len(y_label)): # ! need faster implementation
-            #     if p_label[j] == y_label[x]:
-            #         IoU = (1.0 * intersection / union)
             
             IoU = (1.0 * intersection / union) * (p_label[j] == y_label[:])
 
@@ -117,7 +114,7 @@ class Eval():
     
         overlap = [.1, .25, .5]
         tp, fp, fn = np.zeros(len(overlap)), np.zeros(len(overlap)), np.zeros(len(overlap))
-        size = len(self.test_dataloader.dataset)
+        size = len(self.test_dataloader.dataset) # for test
         correct = 0
 
         self.model.eval()
@@ -127,16 +124,24 @@ class Eval():
                 
                 y = y.type(torch.LongTensor)
                 y = y.to(self.device)
+                # y = y.argmax(dim=0) # ? maybe incorrect
                 ground_truth = y
-                self._gts = np.append(self._gts, ground_truth.cpu().numpy())
 
                 pred = self.model(X)
                 pred = pred.squeeze(-1)
                 pred_target = pred.argmax(1)
+
+                eq= (pred_target == ground_truth)
+
+                # eq's all array true
+                if eq.all() == True:
+                    correct += 1
+                    
+                
+                self._gts = np.append(self._gts, ground_truth.cpu().numpy())
                 self._preds = np.append(self._preds, pred_target.cpu().numpy())
 
-                correct += (pred_target == ground_truth).type(torch.FloatTensor).sum().item()
-
+            # correct = int(correct / ground_truth.shape[1])
             acc = correct / size
             self._writer.add_text('accuracy', f'{acc}', 0)
             print(f"Accuracy completed: {acc}")
