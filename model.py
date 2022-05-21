@@ -2,26 +2,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Temporal Convolutional Network only one refinment layer
+# Temporal Convolutional Network dialutional layer
 class DilatedResidualLayer(nn.Module):
-    def __init__(self, dilation=1, channels=4, output=1, dim=6144):
+    def __init__(self, dilation=1, output_channels=1, input_channels=1, filter_size=4):
         super(DilatedResidualLayer, self).__init__()
-        self.conv_input = nn.Conv1d(dim, channels, kernel_size=1)
-        self.conv_dilated = nn.Conv1d(channels, channels, 3, padding=dilation, dilation=1)
-        self.conv_1x1 = nn.Conv1d(channels, channels, 1)
-        self.conv_out = nn.Conv1d(channels, output, 1)
-
-        self.shortcut = nn.Conv1d(dim, channels, 1) # TODO write a identity if else statemnent
+        self.conv_in = nn.Conv1d(input_channels, filter_size, 1)
+        self.conv_dilated = nn.Conv1d(filter_size, filter_size, 3, padding=dilation, dilation=dilation)
+        self.conv_1x1 = nn.Conv1d(filter_size, filter_size, 1)
+        self.dropout = nn.Dropout()
+        self.conv_out = nn.Conv1d(filter_size, output_channels, 1)
 
     def forward(self, x):
-        
-        x = torch.unsqueeze(x, 1)
-        x = x.permute(0, 2, 1)
-        
-        residual = self.shortcut(x)
-        
-        out = self.conv_input(x)
+        out = self.conv_in(x)
         out = F.relu(self.conv_dilated(out))
-        out = self.conv_1x1(out) + residual
-
+        out = self.conv_1x1(out)
+        out = self.dropout(out)
+        out = self.conv_out(out)
         return out
+        # return x + out # will be used when using multiple dilated layers
