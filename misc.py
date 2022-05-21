@@ -37,6 +37,10 @@ def plot_axample():
         train_x = f['data']
         train_x = np.array(train_x)
     
-    print(train_x.shape)
-    plot_timeseq(train_x, 10, [1.1624487967229904, 3.7137179979518695], 'test')
+    fig, _ = plot_timeseq(train_x, 10, [1.1624487967229904, 3.7137179979518695], 'test')
     plt.show()
+    # save figure
+    fig.savefig('test.png')
+
+if __name__ == '__main__':
+    plot_axample()
