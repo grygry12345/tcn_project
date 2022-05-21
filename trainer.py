@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
-# TODO: design device selection and add default optimizer and loss function
+
 class Trainer(nn.Module):
     def __init__(self, model, loss_fn, optimizer, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, test_dataloader: DataLoader, device: str = "cuda:0", printBatch: bool = False):
         super(Trainer, self).__init__()
@@ -17,7 +17,7 @@ class Trainer(nn.Module):
         self.test_dataloader = test_dataloader
         self.device = device
         # Summary writer with date and model name
-        self._writer = SummaryWriter(f'runs/{model.__class__.__name__}_{datetime.datetime.now()}')
+        self._writer = SummaryWriter(f'runs/{model.__class__.__name__}')
     
 
     def _step_train(self):
@@ -27,13 +27,14 @@ class Trainer(nn.Module):
         self.model.train()
         for batch, (X, y) in enumerate(self.train_dataloader):
             X = X.to(self.device)
-            y = y.type(torch.LongTensor)
+            # y = torch.argmax(y, dim=1) # ? maybe wrong
+            # y = y.type(torch.LongTensor)
             y = y.to(self.device)
+
 
             # Compute prediction error
             pred = self.model(X)
-
-            loss = self.loss_fn(pred.squeeze(), y)
+            loss = self.loss_fn(pred, y)
 
 
             # Backpropagation
@@ -56,16 +57,22 @@ class Trainer(nn.Module):
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
-                y = y.type(torch.LongTensor)
+                # y = torch.argmax(y, dim=1) # ? maybe incorrect
+                # y = y.type(torch.LongTensor)
                 y = y.to(self.device)
 
                 # Compute prediction error
                 pred = self.model(X)
-                
-                pred = pred.squeeze(-1)
+                # pred = pred.squeeze(-1)
                 val_loss += self.loss_fn(pred, y).item()
 
-                val_correct += (pred.argmax(1) == y).type(torch.FloatTensor).sum().item()
+
+                pred_target = pred.argmax(dim=1)
+                eq = (pred_target == y)
+
+                if eq.all() == True:
+                    val_correct += 1
+
         val_loss /= num_batches
         val_correct /= size
 
