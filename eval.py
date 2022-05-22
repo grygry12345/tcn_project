@@ -1,4 +1,6 @@
+from cgi import test
 from pyexpat import model
+from attr import has
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch
@@ -74,7 +76,7 @@ class Eval():
         Y, _, _ = self._get_labels_start_end_time(ground_truth, bg_class)
         return self._levenstein(P, Y, norm)
     
-    def _f_score(self, recognized, ground_truth, overlap, bg_class=["background"]):
+    def _f_score(self, recognized, ground_truth, overlap, bg_class=[0]):
         p_label, p_start, p_end = self._get_labels_start_end_time(recognized, bg_class)
         y_label, y_start, y_end = self._get_labels_start_end_time(ground_truth, bg_class)
 
@@ -95,7 +97,7 @@ class Eval():
             union = torch.from_numpy(union).to(self.device)
 
             
-            IoU = (1.0 * intersection / union) * (p_label[j] == y_label[:])
+            IoU = (1.0 * intersection / union) * (p_label[j] == y_label[:]) # !
 
 
             # Get the best scoring segment
@@ -121,28 +123,27 @@ class Eval():
         with torch.no_grad():
             for _, (X, y) in enumerate(self.test_dataloader):
                 X = X.to(self.device)
-                
-                y = y.type(torch.LongTensor)
-                y = y.to(self.device)
-                # y = y.argmax(dim=0) # ? maybe incorrect
+                frame_size = X.shape[1]
+
+                y = y.type(torch.LongTensor).to(self.device)
                 ground_truth = y
 
                 pred = self.model(X)
-                pred = pred.squeeze(-1)
                 pred_target = pred.argmax(1)
 
-                eq= (pred_target == ground_truth)
 
-                # eq's all array true
-                if eq.all() == True:
-                    correct += 1
-                    
+                # correct += pred_target.eq(y).sum().item()
+
+                for i in range(y.shape[1]): # ! could be wrong size of pred and y
+                    correct += (pred_target == ground_truth[:, i]).sum().item()
+                    self._gts = np.append(self._gts, ground_truth[:, i].cpu().numpy())
+                    self._preds = np.append(self._preds, pred_target.cpu().numpy())
                 
-                self._gts = np.append(self._gts, ground_truth.cpu().numpy())
-                self._preds = np.append(self._preds, pred_target.cpu().numpy())
+                # self._gts = np.append(self._gts, ground_truth.cpu().numpy())
+                # self._gts = np.append(self._gts, ground_truth.cpu().numpy())
 
-            # correct = int(correct / ground_truth.shape[1])
-            acc = correct / size
+
+            acc = (correct / (size * frame_size)) * 100
             self._writer.add_text('accuracy', f'{acc}', 0)
             print(f"Accuracy completed: {acc}")
 
@@ -154,7 +155,11 @@ class Eval():
                 tp, fp, fn = self._f_score(self._preds, self._gts, overlap[i])
                 precision = tp / (tp + fp)
                 recall = tp / (tp + fn)
-                f1 = 2 * precision * recall / (precision + recall)
+                if (precision + recall) != 0:
+                    f1 = 2 * precision * recall / (precision + recall)
+                # f1 = 2 * precision * recall / (precision + recall)
+                else:
+                    f1 = 0.0
                 self._writer.add_text(f'f1_score_{overlap[i]}', f'{f1}', 2)
                 print(f"F1 score {overlap[i]} completed: {f1}", end="\r")
                 # empty line
