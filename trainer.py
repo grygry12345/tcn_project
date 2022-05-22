@@ -1,3 +1,5 @@
+from tkinter import Y
+from grpc import local_server_credentials
 import torch.nn as nn 
 import torch
 from torch.utils.data import DataLoader
@@ -23,26 +25,32 @@ class Trainer(nn.Module):
     def _step_train(self):
         train_loss = 0.0
         num_batches = len(self.train_dataloader)
-        size = len(self.train_dataloader.dataset)
         self.model.train()
         for batch, (X, y) in enumerate(self.train_dataloader):
             X = X.to(self.device)
-            # y = torch.argmax(y, dim=1) # ? maybe wrong
-            # y = y.type(torch.LongTensor)
-            y = y.to(self.device)
+            y = y.type(torch.LongTensor).to(self.device)
 
 
             # Compute prediction error
             pred = self.model(X)
-            loss = self.loss_fn(pred, y)
+            
+            loss_arr = []
+            for i in range(y.shape[1]):
+                loss = self.loss_fn(pred, y[:,i])
+                loss_arr.append(loss)
 
-
-            # Backpropagation
             self.optimizer.zero_grad()
-            loss.backward()
+            
+            for i in range(y.shape[1]):
+                # Backpropagation
+                loss_arr[i].backward(retain_graph=True)
+            
             self.optimizer.step()
 
-            train_loss += loss.item()
+
+            # train_loss += loss.item()
+            # average loss
+            train_loss += sum(loss_arr) / len(loss_arr)
         
         train_loss /= num_batches
 
@@ -50,6 +58,7 @@ class Trainer(nn.Module):
             
     
     def _step_val(self):
+        
         size = len(self.val_dataloader.dataset)
         num_batches = len(self.val_dataloader)
         self.model.eval()
@@ -57,24 +66,24 @@ class Trainer(nn.Module):
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
-                # y = torch.argmax(y, dim=1) # ? maybe incorrect
-                # y = y.type(torch.LongTensor)
-                y = y.to(self.device)
+                frame_size = X.shape[1]
+                
+                y = y.type(torch.LongTensor).to(self.device)
 
                 # Compute prediction error
                 pred = self.model(X)
-                # pred = pred.squeeze(-1)
-                val_loss += self.loss_fn(pred, y).item()
+                val_loss_arr = []
 
+                for i in range(y.shape[1]):
+                    loss = self.loss_fn(pred, y[:,i])
+                    val_loss_arr.append(loss)
+                    val_correct += (pred.argmax(dim=1) == y[:,i]).sum().item()
+                
+                val_loss += sum(val_loss_arr) / len(val_loss_arr)
 
-                pred_target = pred.argmax(dim=1)
-                eq = (pred_target == y)
-
-                if eq.all() == True:
-                    val_correct += 1
 
         val_loss /= num_batches
-        val_correct /= size
+        val_correct /= (size * frame_size)
 
         return val_loss, val_correct
 
