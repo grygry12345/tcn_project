@@ -1,14 +1,11 @@
-from tkinter import Y
-from grpc import local_server_credentials
 import torch.nn as nn 
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import datetime
-import numpy as np
 
 class Trainer(nn.Module):
-    def __init__(self, model, loss_fn, optimizer, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, test_dataloader: DataLoader, device: str = "cuda:0", printBatch: bool = False):
+    def __init__(self, model, loss_fn, optimizer, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, \
+    test_dataloader: DataLoader, device: str = "cuda:0", writer: SummaryWriter = None):
         super(Trainer, self).__init__()
         self.model = model
         self.loss_fn = loss_fn
@@ -19,7 +16,7 @@ class Trainer(nn.Module):
         self.test_dataloader = test_dataloader
         self.device = device
         # Summary writer with date and model name
-        self._writer = SummaryWriter(f'runs/{model.__class__.__name__}')
+        self.writer = writer
     
 
     def _step_train(self):
@@ -35,6 +32,7 @@ class Trainer(nn.Module):
             pred = self.model(X)
             
             loss_arr = []
+
             for i in range(y.shape[1]):
                 loss = self.loss_fn(pred, y[:,i])
                 loss_arr.append(loss)
@@ -92,9 +90,9 @@ class Trainer(nn.Module):
             print(f"Epoch {t}/{self.epochs}", end="\r")
             train_loss = self._step_train()
             val_loss, val_correct = self._step_val()
-            self._writer.add_scalar('train_loss', train_loss, t)
-            self._writer.add_scalar('val_loss', val_loss, t)
-            self._writer.add_scalar('val_acc', val_correct, t)
+            self.writer.add_scalar('train_loss', train_loss, t)
+            self.writer.add_scalar('val_loss', val_loss, t)
+            self.writer.add_scalar('val_acc', val_correct, t)
         print()
 
 
