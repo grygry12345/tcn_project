@@ -1,11 +1,7 @@
-from cgi import test
 from pyexpat import model
-from attr import has
-from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import datetime
 
 # Referance : https://github.com/yabufarha/ms-tcn/blob/master/eval.py
 # Y. Abu Farha and J. Gall.
@@ -21,7 +17,6 @@ class Eval():
         self.model = model
         self.test_dataloader = test_dataloader
         self.device = device
-        self._writer = SummaryWriter(f'runs/{model.__class__.__name__}_{datetime.datetime.now()}')
         self._preds = np.empty((0))
         self._gts = np.empty((0))
 
@@ -87,6 +82,7 @@ class Eval():
         fp = 0
         i = 0
         hits = np.zeros(len(y_label))
+
         for j in range(len(p_label)):
             i += 1
             intersection = np.minimum(p_end[j], y_end) - np.maximum(p_start[j], y_start)
@@ -132,35 +128,44 @@ class Eval():
                 pred_target = pred.argmax(1)
 
 
-                # correct += pred_target.eq(y).sum().item()
-
                 for i in range(y.shape[1]): # ! could be wrong size of pred and y
                     correct += (pred_target == ground_truth[:, i]).sum().item()
                     self._gts = np.append(self._gts, ground_truth[:, i].cpu().numpy())
-                    self._preds = np.append(self._preds, pred_target.cpu().numpy())
                 
-                # self._gts = np.append(self._gts, ground_truth.cpu().numpy())
-                # self._gts = np.append(self._gts, ground_truth.cpu().numpy())
+                    self._preds = np.append(self._preds, pred_target.cpu().numpy()) # ! could be wrong implementation
 
 
             acc = (correct / (size * frame_size)) * 100
-            self._writer.add_text('accuracy', f'{acc}', 0)
             print(f"Accuracy completed: {acc}")
 
-            edit = self._edit_score(self._preds, self._gts)
-            print(f"Edit score completed: {edit}")
+            # edit = self._edit_score(self._preds, self._gts)
+            # print(f"Edit score completed: {edit}")
             
-            self._writer.add_text('edit', f'{edit}', 1)
+            precision_list = []
+            recall_list = []
+            f1_list = []
             for i in range(len(overlap)):
                 tp, fp, fn = self._f_score(self._preds, self._gts, overlap[i])
+
                 precision = tp / (tp + fp)
                 recall = tp / (tp + fn)
+                precision_list.append(precision)
+                recall_list.append(recall)
+
+
                 if (precision + recall) != 0:
                     f1 = 2 * precision * recall / (precision + recall)
-                # f1 = 2 * precision * recall / (precision + recall)
                 else:
                     f1 = 0.0
-                self._writer.add_text(f'f1_score_{overlap[i]}', f'{f1}', 2)
-                print(f"F1 score {overlap[i]} completed: {f1}", end="\r")
+
+                f1_list.append(f1)
+                
+                print(f"F1 score {overlap[i]} completed: {f1 * 100}")
+                print(f"Precision score {overlap[i]} completed: {precision * 100}")
+                print(f"Recall score {overlap[i]} completed: {recall * 100}")
                 # empty line
                 print()
+        
+        # return acc, edit, f1_list, precision_list, recall_list
+        return acc, f1_list, precision_list, recall_list
+        # return acc
