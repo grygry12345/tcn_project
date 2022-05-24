@@ -1,4 +1,3 @@
-from lib2to3.pytree import Node
 import torch
 from torch.utils.data import Dataset
 import h5py
@@ -52,7 +51,8 @@ class HDF5Dataset(Dataset):
                         break
                     else:
                         seq = d[frame:frame+self.frame_count]
-                        # seq = normalize(seq, dim=0)
+
+                        
                         seq = seq.unsqueeze(0)
 
                         if self.data is None:
@@ -64,7 +64,6 @@ class HDF5Dataset(Dataset):
 
             # progress bar
             i += 1
-            # print('Creating data {}/{}'.format(i, len(sets[group])), end='\r')
             print (f'Creating {group} data {i}/{len(sets[group])}', end='\r')
         print()
         
@@ -93,7 +92,6 @@ class HDF5Dataset(Dataset):
                     break
                 else:
                     seq = l[frame:frame+self.frame_count]
-
                     seq = seq.unsqueeze(0)
 
                     if self.labels is None:
@@ -103,7 +101,6 @@ class HDF5Dataset(Dataset):
                 
             # progress bar
             i += 1
-            # print('Creating labels {}/{}'.format(i, len(sets[group])), end='\r')
             print (f'Creating {group} labels {i}/{len(sets[group])}', end='\r')
         print()
 
@@ -138,6 +135,7 @@ class HDF5Dataset(Dataset):
                 self._concatenate_labels(segments, 'test')
             else:
                 raise Exception('Invalid group')
+        
     
                        
     def load_variables(self, file_path, file_name_data, file_name_label):
