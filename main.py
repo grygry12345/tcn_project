@@ -6,79 +6,107 @@ import model as m
 from dataset import HDF5Dataset
 import trainer as t
 import eval
-
-
+import itertools
+from torch.utils.tensorboard import SummaryWriter
+import csv
 
 if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     batch_size = 64
-    epochs = 100
-    lr = 1e-3
-    step_size = 3
-    frame_count = 3
-    filter_size = 4
+    epochs = 30
+    lr = [1e-3]
+    step_size = [5]
+    frame_count = [2, 4, 8, 16, 32, 64]
+    filter_size = [16]
+    number_layers = [1]
     
+    # get combinations of parameters lr, step_size, frame_count, filter_size
+    lr_step_size_frame_filter = list(itertools.product(frame_count, step_size, lr, filter_size, number_layers))
+
     num_class = 2
 
-    training_data = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size)
-    val_data = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count, step_size=step_size)
-    test_data = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count, step_size=step_size)
+    i = 0
+    frame_count_prev = 0
+    step_size_prev = 0
 
-    # if var folder not empty then load data and labels from saved numpy arrays
-    # else create data and labels
-    # if not os.path.exists('data/var'):
-    #     os.mkdir('data/var')
+    # create csv file for storing results
+    results_file = open('results.csv', 'w')
+    results_writer = csv.writer(results_file)
+    # write header
+    # results_writer.writerow(['lr', 'step_size', 'frame_count', 'filter_size', 'acc', 'f1_0.1', 'f1_0.25', 'f1_0.5', \
+    #                         'precision_0.1', 'precision_0.25', 'precision_0.5', 'recall_0.1', 'recall_0.25', 'recall_0.5'])
+    results_writer.writerow(['lr', 'step_size', 'frame_count', 'filter_size', 'acc', 'f1_0.1', 'f1_0.25', 'f1_0.5', \
+                            'precision_0.1', 'precision_0.25', 'precision_0.5', 'recall_0.1', 'recall_0.25', 'recall_0.5'])
+
+    model_dir = f'models/lr_{lr}_step_size_{step_size}_frame_count_{frame_count}_filter_size_{filter_size}_num_layer_{number_layers}.pt'
     
-    # # Check if data already saved in var folder 
+    # iterate through all combinations
+    for frame_count, step_size, lr, filter_size, number_layers in lr_step_size_frame_filter:
+        
+        writer = SummaryWriter(f"runs/frame_count_{frame_count}_step_size_{step_size}_lr_{lr}_filter_size_{filter_size}")
+        
+        if frame_count_prev == frame_count and step_size_prev == step_size:
+            print('Same parameters "frame_size" and "step_size" skipping')
+        else:
+            
 
-    # if not os.path.exists('data/var/data_train.pt'):
-    #     training_data.create_data()
-    #     training_data.create_labels()
-    #     training_data.save_varibles('data/var/', 'data_train', 'label_train')
-    # else:
-    #     print('Loading train data...')
-    #     training_data.load_variables('data/var/', 'data_train', 'label_train')
-    #     print('Train data loaded.')
+            train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size)
+            val = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count, step_size=step_size)
+            test = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count, step_size=step_size)
 
-    # if not os.path.exists('data/var/data_val.pt'):
-    #     val_data.create_data()
-    #     val_data.create_labels()
-    #     val_data.save_varibles('data/var/', 'data_val', 'label_val')
-    # else:
-    #     print('Loading val data...')
-    #     val_data.load_variables('data/var/', 'data_val', 'label_val')
-    #     print('Val data loaded.')
+            train.create_data()
+            train.create_labels()
+            val.create_data()
+            val.create_labels()
+            test.create_data()
+            test.create_labels()
+
+            training_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
+            val_loader = DataLoader(val, batch_size=batch_size, shuffle=True)
+            test_loader = DataLoader(test,batch_size=batch_size, shuffle=True)
+            
+
+        # if model is not already created, create model
+        if not os.path.exists(f'new_var'):
+            print('Creating new model')
+            # model = m.DilatedResidualLayer(output_channels=num_class, input_channels=frame_count, filter_size=filter_size).to(device)
+            model = m.SS_TCN(num_classes=num_class, num_input=frame_count, filter_size=filter_size, num_layers=number_layers).to(device)
+            loss_fn = nn.CrossEntropyLoss()
+            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+            trainer = t.Trainer(model, loss_fn, optimizer, epochs=epochs, train_dataloader=training_loader, \
+                                val_dataloader=val_loader, test_dataloader=test_loader, device=device, writer=writer)
+            trainer.train()
+            print('Training complete.')
+            # saves model
+            torch.save(model.state_dict(), model_dir)
+        else:
+            print('Already has model. Skipping training.')
+            # model = m.DilatedResidualLayer(output_channels=num_class, input_channels=frame_count, filter_size=filter_size).to(device)
+            model = m.SS_TCN(num_classes=num_class, num_input=frame_count, filter_size=filter_size, num_layers=number_layers).to(device)
+            model.load_state_dict(torch.load(model_dir))
+
+
+
+        # Evaluate model on test data
+        evaluation = eval.Eval(model, test_loader, device)
+        # acc, edit, f1_arr, precision_list, recall_list = evaluation.eval()
+        acc, f1_arr, precision_list, recall_list = evaluation.eval()
+        # acc = evaluation.eval()
+
+
+        # append results in csv file
+        # results_writer.writerow([lr, step_size, frame_count, filter_size, acc, edit, f1_arr[0], f1_arr[1], f1_arr[2], \
+        #                         precision_list[0], precision_list[1], precision_list[2], recall_list[0], recall_list[1], recall_list[2]])
+        results_writer.writerow([lr, step_size, frame_count, filter_size, acc, f1_arr[0], f1_arr[1], f1_arr[2], \
+                                precision_list[0], precision_list[1], precision_list[2], recall_list[0], recall_list[1], recall_list[2]])
+        # results_writer.writerow([lr, step_size, frame_count, filter_size, acc]) # only accuracy
+
+        i += 1
+        print(f"{i}/{len(lr_step_size_frame_filter)} combinations")
+        
+        frame_count_prev = frame_count
+        step_size_prev = step_size
     
-    # if not os.path.exists('data/var/data_test.pt'):
-    #     test_data.create_data()
-    #     test_data.create_labels()
-    #     test_data.save_varibles('data/var/', 'data_test', 'label_test')
-    # else:
-    #     print('Loading test data...')
-    #     test_data.load_variables('data/var/', 'data_test', 'label_test')
-    #     print('Test data loaded.')
-
-    training_data.create_data()
-    training_data.create_labels()
-    val_data.create_data()
-    val_data.create_labels()
-    test_data.create_data()
-    test_data.create_labels()
-    
-
-
-    training_loader = DataLoader(training_data, batch_size=batch_size, shuffle=False)
-    val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_data,batch_size=batch_size, shuffle=True)
-
-    model = m.DilatedResidualLayer(output_channels=num_class, input_channels=frame_count, filter_size=filter_size).to(device) # ? assigning batch size could be wrong
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
-    trainer = t.Trainer(model, loss_fn, optimizer, epochs=epochs, train_dataloader=training_loader, \
-                        val_dataloader=val_loader, test_dataloader=test_loader, device=device)
-    trainer.train()
-    print('Training complete.')
-
-    eval = eval.Eval(model, test_loader, device)
-    eval.eval()
+    # close csv file
+    results_file.close()
