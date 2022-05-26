@@ -66,12 +66,6 @@ class Eval():
         if last_label not in bg_class:
             ends.append(i)
         return labels, starts, ends
-
-    
-    def _edit_score(self, recognized, ground_truth, norm=True, bg_class=[-1]): # ! not sure it works
-        P, _, _ = self._get_labels_start_end_time(recognized, bg_class)
-        Y, _, _ = self._get_labels_start_end_time(ground_truth, bg_class)
-        return self._levenstein(P, Y, norm)
     
     def _f_score(self, recognized, ground_truth, overlap, bg_class=[-1]):
         p_label, p_start, p_end = self._get_labels_start_end_time(recognized, bg_class)
@@ -131,21 +125,6 @@ class Eval():
                 pred = self.model(X)
                 pred_target = pred.argmax(1)
 
-                if pred_target.unique().shape[0] == 1:
-                    if pred_target.unique() == 0:
-                            pred_target  = torch.tensor([0], dtype=torch.float32, device=self.device)
-                    elif pred_target.unique() == 1:
-                            pred_target  = torch.tensor([1], dtype=torch.float32, device=self.device)
-                elif pred_target.unique().shape[0] == 2:
-                    # count zero values
-                    c0 = torch.sum(pred_target == 0)
-                    c1 = torch.sum(pred_target == 1)
-                    if c0 > c1:
-                        pred_target = torch.tensor([0], dtype=torch.float32, device=self.device)
-                    elif c1 > c0 or c1 == c0:
-                        pred_target = torch.tensor([1], dtype=torch.float32, device=self.device)
-
-
                 correct += (pred_target == ground_truth).sum().item()
                 self._gts = np.append(self._gts, ground_truth.cpu().numpy())
                 
@@ -153,8 +132,6 @@ class Eval():
 
 
             acc = (correct / size) * 100
-
-            # edit_score = self._edit_score(self._preds, self._gts)
             
             precision_list = []
             recall_list = []
@@ -175,5 +152,4 @@ class Eval():
 
                 f1_list.append(f1)
         
-        # return acc, edit, f1_list, precision_list, recall_list
         return acc, f1_list, precision_list, recall_list

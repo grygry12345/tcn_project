@@ -32,6 +32,7 @@ class HDF5Dataset(Dataset):
     def _concatenate_frames(self, sets, group):
         i = 0
         file_list = sets[group].keys()
+        
         for file_name in file_list:
             with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
                 d = f['data']
@@ -92,20 +93,6 @@ class HDF5Dataset(Dataset):
                     break
                 else:
                     seq = l[frame:frame+self.frame_count]
-
-                    if seq.unique().shape[0] == 1:
-                        if seq.unique() == 0:
-                            seq  = torch.tensor([0], dtype=torch.float32, device=self.device)
-                        elif seq.unique() == 1:
-                            seq  = torch.tensor([1], dtype=torch.float32, device=self.device)
-                    elif seq.unique().shape[0] == 2:
-                        # count zero values
-                        c0 = torch.sum(seq == 0)
-                        c1 = torch.sum(seq == 1)
-                        if c0 > c1:
-                            seq = torch.tensor([0], dtype=torch.float32, device=self.device)
-                        elif c1 > c0 or c1 == c0:
-                            seq = torch.tensor([1], dtype=torch.float32, device=self.device)
 
                     seq = seq.unsqueeze(0)
 

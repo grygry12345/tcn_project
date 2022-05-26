@@ -25,18 +25,18 @@ class Trainer(nn.Module):
         self.model.train()
         for batch, (X, y) in enumerate(self.train_dataloader):
             X = X.to(self.device)
-            y = y.type(torch.LongTensor).to(self.device)
+            y = y.type(torch.FloatTensor).to(self.device)
 
 
             # Compute prediction error
             pred = self.model(X)
 
-            loss = self.loss_fn(pred, y.squeeze())
+            loss = self.loss_fn(pred, y.squeeze()) # ! fix this
 
             
-            self.optimizer.zero_grad()
             
             # Backpropagation
+            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             
@@ -59,7 +59,7 @@ class Trainer(nn.Module):
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
                 
-                y = y.type(torch.LongTensor).to(self.device)
+                y = y.type(torch.FloatTensor).to(self.device)
 
                 # Compute prediction error
                 pred = self.model(X)
@@ -70,21 +70,7 @@ class Trainer(nn.Module):
 
                 pred_target = pred.argmax(1)
 
-                if pred_target.unique().shape[0] == 1:
-                    if pred_target.unique() == 0:
-                            pred_target  = torch.tensor([0], dtype=torch.float32, device=self.device)
-                    elif pred_target.unique() == 1:
-                            pred_target  = torch.tensor([1], dtype=torch.float32, device=self.device)
-                elif pred_target.unique().shape[0] == 2:
-                    # count zero values
-                    c0 = torch.sum(pred_target == 0)
-                    c1 = torch.sum(pred_target == 1)
-                    if c0 > c1:
-                        pred_target = torch.tensor([0], dtype=torch.float32, device=self.device)
-                    elif c1 > c0 or c1 == c0:
-                        pred_target = torch.tensor([1], dtype=torch.float32, device=self.device)
-
-                val_correct += torch.sum(pred_target == y).item()
+                val_correct += torch.sum(pred == y).item()
 
 
         val_loss /= num_batches

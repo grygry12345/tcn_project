@@ -16,12 +16,12 @@ if __name__ == '__main__':
     batch_size = 64
     epochs = 100
     
-    step_size = [5 , 10, 20]
-    frame_count = [2, 4, 8, 16]
+    step_size = [2, 3]
+    frame_count = [4, 8, 16]
     
-    number_layers = [1, 2, 3]
+    number_layers = [1, 2]
     lr = [1e-3, 1e-4, 1e-5, 1e-6]
-    filter_size = [2, 4, 8, 16]
+    filter_size = [8, 16]
 
     
 
