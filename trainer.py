@@ -33,8 +33,6 @@ class Trainer(nn.Module):
 
             loss = self.loss_fn(pred, y.squeeze()) # ! fix this
 
-            
-            
             # Backpropagation
             self.optimizer.zero_grad()
             loss.backward()
