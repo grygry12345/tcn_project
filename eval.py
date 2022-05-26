@@ -1,4 +1,3 @@
-from pyexpat import model
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -29,6 +28,7 @@ class Eval():
         for i in range(n_col+1):
             D[0, i] = i
 
+
         for j in range(1, n_col+1):
             for i in range(1, m_row+1):
                 if y[j-1] == p[i-1]:
@@ -37,6 +37,8 @@ class Eval():
                     D[i, j] = min(D[i-1, j] + 1,
                                 D[i, j-1] + 1,
                                 D[i-1, j-1] + 1)
+            
+            print(f"Levenstein {j}/{n_col}", end="\r")
 
         if norm:
             score = (1 - D[-1, -1]/max(m_row, n_col)) * 100
@@ -45,7 +47,7 @@ class Eval():
 
         return score
     
-    def _get_labels_start_end_time(self, frame_wise_labels, bg_class=[0]):
+    def _get_labels_start_end_time(self, frame_wise_labels, bg_class=[-1]):
         labels = []
         starts = []
         ends = []
@@ -66,12 +68,12 @@ class Eval():
         return labels, starts, ends
 
     
-    def _edit_score(self, recognized, ground_truth, norm=True, bg_class=[0]): # ! not sure it works
+    def _edit_score(self, recognized, ground_truth, norm=True, bg_class=[-1]): # ! not sure it works
         P, _, _ = self._get_labels_start_end_time(recognized, bg_class)
         Y, _, _ = self._get_labels_start_end_time(ground_truth, bg_class)
         return self._levenstein(P, Y, norm)
     
-    def _f_score(self, recognized, ground_truth, overlap, bg_class=[0]):
+    def _f_score(self, recognized, ground_truth, overlap, bg_class=[-1]):
         p_label, p_start, p_end = self._get_labels_start_end_time(recognized, bg_class)
         y_label, y_start, y_end = self._get_labels_start_end_time(ground_truth, bg_class)
 
@@ -105,7 +107,10 @@ class Eval():
             else:
                 fp += 1
             print(f"F1 score {i}/{len(p_label)}", end="\r")
+        
+        
         fn = len(y_label) - sum(hits)
+        
         return float(tp), float(fp), float(fn)
 
     def eval(self):
@@ -119,7 +124,6 @@ class Eval():
         with torch.no_grad():
             for _, (X, y) in enumerate(self.test_dataloader):
                 X = X.to(self.device)
-                frame_size = X.shape[1]
 
                 y = y.type(torch.LongTensor).to(self.device)
                 ground_truth = y
@@ -127,19 +131,30 @@ class Eval():
                 pred = self.model(X)
                 pred_target = pred.argmax(1)
 
+                if pred_target.unique().shape[0] == 1:
+                    if pred_target.unique() == 0:
+                            pred_target  = torch.tensor([0], dtype=torch.float32, device=self.device)
+                    elif pred_target.unique() == 1:
+                            pred_target  = torch.tensor([1], dtype=torch.float32, device=self.device)
+                elif pred_target.unique().shape[0] == 2:
+                    # count zero values
+                    c0 = torch.sum(pred_target == 0)
+                    c1 = torch.sum(pred_target == 1)
+                    if c0 > c1:
+                        pred_target = torch.tensor([0], dtype=torch.float32, device=self.device)
+                    elif c1 > c0 or c1 == c0:
+                        pred_target = torch.tensor([1], dtype=torch.float32, device=self.device)
 
-                for i in range(y.shape[1]): # ! could be wrong size of pred and y
-                    correct += (pred_target == ground_truth[:, i]).sum().item()
-                    self._gts = np.append(self._gts, ground_truth[:, i].cpu().numpy())
+
+                correct += (pred_target == ground_truth).sum().item()
+                self._gts = np.append(self._gts, ground_truth.cpu().numpy())
                 
-                    self._preds = np.append(self._preds, pred_target.cpu().numpy()) # ! could be wrong implementation
+                self._preds = np.append(self._preds, pred_target.cpu().numpy())
 
 
-            acc = (correct / (size * frame_size)) * 100
-            print(f"Accuracy completed: {acc}")
+            acc = (correct / size) * 100
 
-            # edit = self._edit_score(self._preds, self._gts)
-            # print(f"Edit score completed: {edit}")
+            # edit_score = self._edit_score(self._preds, self._gts)
             
             precision_list = []
             recall_list = []
@@ -159,13 +174,6 @@ class Eval():
                     f1 = 0.0
 
                 f1_list.append(f1)
-                
-                print(f"F1 score {overlap[i]} completed: {f1 * 100}")
-                print(f"Precision score {overlap[i]} completed: {precision * 100}")
-                print(f"Recall score {overlap[i]} completed: {recall * 100}")
-                # empty line
-                print()
         
         # return acc, edit, f1_list, precision_list, recall_list
         return acc, f1_list, precision_list, recall_list
-        # return acc
