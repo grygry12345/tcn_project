@@ -92,6 +92,21 @@ class HDF5Dataset(Dataset):
                     break
                 else:
                     seq = l[frame:frame+self.frame_count]
+
+                    if seq.unique().shape[0] == 1:
+                        if seq.unique() == 0:
+                            seq  = torch.tensor([0], dtype=torch.float32, device=self.device)
+                        elif seq.unique() == 1:
+                            seq  = torch.tensor([1], dtype=torch.float32, device=self.device)
+                    elif seq.unique().shape[0] == 2:
+                        # count zero values
+                        c0 = torch.sum(seq == 0)
+                        c1 = torch.sum(seq == 1)
+                        if c0 > c1:
+                            seq = torch.tensor([0], dtype=torch.float32, device=self.device)
+                        elif c1 > c0 or c1 == c0:
+                            seq = torch.tensor([1], dtype=torch.float32, device=self.device)
+
                     seq = seq.unsqueeze(0)
 
                     if self.labels is None:
@@ -135,15 +150,3 @@ class HDF5Dataset(Dataset):
                 self._concatenate_labels(segments, 'test')
             else:
                 raise Exception('Invalid group')
-        
-    
-                       
-    def load_variables(self, file_path, file_name_data, file_name_label):
-        self.data = torch.load(file_path + file_name_data + '.pt')
-        self.labels = torch.load(file_path + file_name_label + '.pt')
-    # save data and labels to file
-    def save_varibles(self, file_path, file_name_data, file_name_label):
-        torch.save(self.data, file_path + file_name_data + '.pt')
-        torch.save(self.labels, file_path + file_name_label + '.pt')
-
-
