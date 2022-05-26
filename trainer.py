@@ -30,25 +30,19 @@ class Trainer(nn.Module):
 
             # Compute prediction error
             pred = self.model(X)
+
+            loss = self.loss_fn(pred, y.squeeze())
+
             
-            loss_arr = []
-
-            for i in range(y.shape[1]):
-                loss = self.loss_fn(pred, y[:,i])
-                loss_arr.append(loss)
-
             self.optimizer.zero_grad()
             
-            for i in range(y.shape[1]):
-                # Backpropagation
-                loss_arr[i].backward(retain_graph=True)
-            
+            # Backpropagation
+            loss.backward()
             self.optimizer.step()
+            
 
 
-            # train_loss += loss.item()
-            # average loss
-            train_loss += sum(loss_arr) / len(loss_arr)
+            train_loss += loss.item()
         
         train_loss /= num_batches
 
@@ -64,24 +58,37 @@ class Trainer(nn.Module):
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
-                frame_size = X.shape[1]
                 
                 y = y.type(torch.LongTensor).to(self.device)
 
                 # Compute prediction error
                 pred = self.model(X)
-                val_loss_arr = []
-
-                for i in range(y.shape[1]):
-                    loss = self.loss_fn(pred, y[:,i])
-                    val_loss_arr.append(loss)
-                    val_correct += (pred.argmax(dim=1) == y[:,i]).sum().item()
                 
-                val_loss += sum(val_loss_arr) / len(val_loss_arr)
+                loss = self.loss_fn(pred, y.squeeze())
+
+                val_loss += loss.item()
+
+                pred_target = pred.argmax(1)
+
+                if pred_target.unique().shape[0] == 1:
+                    if pred_target.unique() == 0:
+                            pred_target  = torch.tensor([0], dtype=torch.float32, device=self.device)
+                    elif pred_target.unique() == 1:
+                            pred_target  = torch.tensor([1], dtype=torch.float32, device=self.device)
+                elif pred_target.unique().shape[0] == 2:
+                    # count zero values
+                    c0 = torch.sum(pred_target == 0)
+                    c1 = torch.sum(pred_target == 1)
+                    if c0 > c1:
+                        pred_target = torch.tensor([0], dtype=torch.float32, device=self.device)
+                    elif c1 > c0 or c1 == c0:
+                        pred_target = torch.tensor([1], dtype=torch.float32, device=self.device)
+
+                val_correct += torch.sum(pred_target == y).item()
 
 
         val_loss /= num_batches
-        val_correct /= (size * frame_size)
+        val_correct /= size
 
         return val_loss, val_correct
 
