@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class Trainer(nn.Module):
-    def __init__(self, model, loss_fn, optimizer, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, \
+    def __init__(self, model, loss_fn, optimizer,lr, epochs: int, train_dataloader: DataLoader, val_dataloader: DataLoader, \
                  test_dataloader: DataLoader, device: str = "cuda:0", writer: SummaryWriter = None):
         super(Trainer, self).__init__()
         self.model = model
@@ -18,6 +18,7 @@ class Trainer(nn.Module):
         self.device = device
         # Summary writer with date and model name
         self.writer = writer
+        self.lr=lr
 
     def _step_train(self):
         train_loss = 0.0
@@ -82,4 +83,5 @@ class Trainer(nn.Module):
             val_loss = self._step_val()
             self.writer.add_scalar('train_loss', train_loss, t)
             self.writer.add_scalar('val_loss', val_loss, t)
+            self.lr.step(train_loss)
         print()
