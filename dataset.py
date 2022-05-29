@@ -3,11 +3,10 @@ from torch.utils.data import Dataset
 import h5py
 import json
 import numpy as np
-from torch.nn.functional import normalize
 
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', data_path="data/roi_mouth", transform=None, group='train', \
-    frame_count: int = 3, step_size: int = 1, device = 'cpu'):
+    frame_count: int = 3, step_size: int = 1, cnn_hidden_size: int = 4, device = 'cpu', model_feature = None):
         self.file_path = file_path
         self.transform = transform
         self.group = group
@@ -15,9 +14,12 @@ class HDF5Dataset(Dataset):
         self.frame_count = frame_count
         self.step_size = step_size
         self.device = device
-        self.labels = None
+        self.labels = np.array([])
         self.data = None
         self._frame_lengths = {}
+        
+        self.cnn_hidden_size = cnn_hidden_size
+        self.model_feature = model_feature
 
     def __len__(self):
         return len(self.data)
@@ -25,8 +27,6 @@ class HDF5Dataset(Dataset):
     def __getitem__(self, idx):
         sample = self.data[idx] 
         label = self.labels[idx]
-        if self.transform:
-            sample = self.transform(sample)
         return sample, label
 
     def _concatenate_frames(self, sets, group):
@@ -37,13 +37,9 @@ class HDF5Dataset(Dataset):
             with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
                 d = f['data']
                 d = np.array(d)
-                d = torch.tensor(d, dtype=torch.float32, device=self.device)
+                # d = torch.tensor(d, dtype=torch.float32, device=self.device)
 
-                d = d.sum(axis=(1,2,3))
                 d_len = d.shape[0]
-
-                # normailize d
-                d = normalize(d, dim=0, p=2)
 
 
                 for frame in range(0, d_len, self.step_size):
@@ -52,23 +48,27 @@ class HDF5Dataset(Dataset):
                         break
                     else:
                         seq = d[frame:frame+self.frame_count]
+                        seq = torch.from_numpy(seq).to(self.device)
+                        seq = self._features_cnn(self.model_feature, seq)
+                        seq = seq.detach().cpu().numpy()
+                        seq = np.expand_dims(seq, axis=0)
 
-                        
-                        seq = seq.unsqueeze(0)
 
                         if self.data is None:
-                            self.data = seq.clone()
+                            self.data = seq.copy()
                         else:
-                            self.data = torch.cat((self.data, seq), dim=0)
-                    
+                            self.data = np.concatenate((self.data, seq), axis=0)
             self._frame_lengths[file_name] = d_len
-
+            
             # progress bar
             i += 1
             print (f'Creating {group} data {i}/{len(sets[group])}', end='\r')
-        print()
-        
 
+        print()
+
+    def _features_cnn(self,model, seq):
+        features = model(seq)
+        return features
 
     def _concatenate_labels(self, sets, group):
         i = 0
@@ -76,30 +76,29 @@ class HDF5Dataset(Dataset):
         for file_name in file_list:
             segments = sets[group][file_name]
             segments = np.array(segments)
-            segments = torch.tensor(segments, dtype=torch.float32, device=self.device)
+            # segments = torch.tensor(segments, dtype=torch.float32, device=self.device)
             frame_length = self._frame_lengths[file_name]
 
 
             if segments[0] == -1 and segments[1] == -1:
-                l = torch.zeros(frame_length, dtype=torch.float32, device=self.device)
+                frame_label = np.zeros(frame_length)
             else:
-                l = torch.zeros(frame_length, dtype=torch.float32, device=self.device)
+                frame_label = np.zeros(frame_length)
                 start = int(segments[0] * 100)
                 end = int(segments[1] * 100)
-                l[start:end] = 1
+                frame_label[start:end] = 1
             
             for frame in range(0, frame_length, self.step_size):
-                if frame + self.frame_count > l.shape[0]:
+                if frame + self.frame_count > frame_label.shape[0]:
                     break
                 else:
-                    seq = l[frame:frame+self.frame_count]
+                    seq = frame_label[frame:frame+self.frame_count]
 
-                    seq = seq.unsqueeze(0)
+                    # mean of the sequence
+                    seq = np.mean(seq)
 
-                    if self.labels is None:
-                        self.labels = seq.clone()
-                    else:
-                        self.labels = torch.cat((self.labels, seq), dim=0)
+                    # Append to labels
+                    self.labels = np.append(self.labels, seq)
                 
             # progress bar
             i += 1
