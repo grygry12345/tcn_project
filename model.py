@@ -1,42 +1,38 @@
 import torch.nn as nn
 import torch.nn.functional as F
-import copy
-class DilatedResidualLayer(nn.Module):
-    def __init__(self, dilation=1, num_output=1, num_input=2):
-        super(DilatedResidualLayer, self).__init__()
-        self.conv_dilated = nn.Conv1d(num_input, num_output, 3, padding=dilation, dilation=dilation)
-        self.conv_1x1 = nn.Conv1d(num_output, num_output, 1)
-        self.dropout = nn.Dropout()
 
-
-        self.shortcut = nn.Conv1d(num_input, num_output, 1)
-
+class CNN(nn.Module):
+    def __init__(self, num_input=2, hidden_size=4):
+        super(CNN, self).__init__()
+        self.conv_1 = nn.Conv2d(num_input, hidden_size, kernel_size=3, padding=1)
+        self.maxpool_1 = nn.MaxPool2d(kernel_size=2, stride=4)
+        self.conv_2 = nn.Conv2d(hidden_size, hidden_size * 2, kernel_size=3, padding=1)
+        # Global average pooling
+        self.gap = nn.AdaptiveAvgPool3d(1)
+    
     def forward(self, x):
-                
-        residual = self.shortcut(x)
-        
-        out = F.relu(self.conv_dilated(x))
-        out = self.dropout(out)
-        out = self.conv_1x1(out) + residual
+        out = F.relu(self.conv_1(x))
+        out = self.maxpool_1(out)
+        out = F.relu(self.conv_2(out))
+
+        # Reshape N x C x H x W -> C X N X H X W
+        out = out.permute(1, 0, 2, 3)
+        out = self.gap(out)
+
+        # sqeeze C X 1 X 1 X 1 -> C
+        out = out.squeeze(1)
+        out = out.squeeze(1)
+        out = out.squeeze(1)
 
         return out
 
-class SS_TCN(nn.Module): # 
-    def __init__(self, num_layers, filter_size, num_input, num_classes):
-        super(SS_TCN, self).__init__()
-        self.conv_1x1 = nn.Conv1d(num_input, filter_size, 1)
-        self.layers = nn.ModuleList([copy.deepcopy(DilatedResidualLayer(2 ** i, filter_size, filter_size)) for i in range(num_layers)])
-        self.conv_out = nn.Conv1d(filter_size, num_classes, 1)
-
+class Linear(nn.Module):
+    def __init__(self, num_input=2, hidden_size=4, num_output=2):
+        super(Linear, self).__init__()
+        self.linear_1 = nn.Linear(num_input, hidden_size)
+        self.linear_2 = nn.Linear(hidden_size, num_output)
+    
     def forward(self, x):
-        out = x.unsqueeze(2)
-
-        out = self.conv_1x1(out)
-        for layer in self.layers:
-            out = layer(out)
-        
-        out = self.conv_out(out) 
-
-        out = out.squeeze(2)
-
+        out = F.relu(self.linear_1(x))
+        out = self.linear_2(out)
         return out
