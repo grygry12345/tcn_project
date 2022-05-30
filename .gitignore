@@ -8,4 +8,6 @@ run
 models
 results.csv
 var
-results_SS_TCN.csv
+results_SS_TCN.
+vars
+results
