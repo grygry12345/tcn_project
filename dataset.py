@@ -3,10 +3,12 @@ from torch.utils.data import Dataset
 import h5py
 import json
 import numpy as np
+from model import BasicLinear
 
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', data_path="data/roi_mouth", transform=None, group='train', \
-    frame_count: int = 3, step_size: int = 1, cnn_hidden_size: int = 4, device = 'cpu', model_feature = None):
+    frame_count: int = 3, step_size: int = 1, device = 'cpu', 
+    model_feature = None, cnn_hidden_size: int = 4, use_baseline = True):
         self.file_path = file_path
         self.transform = transform
         self.group = group
@@ -20,6 +22,7 @@ class HDF5Dataset(Dataset):
         
         self.cnn_hidden_size = cnn_hidden_size
         self.model_feature = model_feature
+        self.use_baseline = use_baseline
 
     def __len__(self):
         return len(self.data)
@@ -37,7 +40,6 @@ class HDF5Dataset(Dataset):
             with h5py.File(self.data_path + '/' + file_name + '.h5', 'r') as f:
                 d = f['data']
                 d = np.array(d)
-                # d = torch.tensor(d, dtype=torch.float32, device=self.device)
 
                 d_len = d.shape[0]
 
@@ -48,9 +50,11 @@ class HDF5Dataset(Dataset):
                         break
                     else:
                         seq = d[frame:frame+self.frame_count]
+
                         seq = torch.from_numpy(seq).to(self.device)
-                        seq = self._features_cnn(self.model_feature, seq)
+                        seq = self._features(self.model_feature, seq)
                         seq = seq.detach().cpu().numpy()
+                        
                         seq = np.expand_dims(seq, axis=0)
 
 
@@ -66,7 +70,7 @@ class HDF5Dataset(Dataset):
 
         print()
 
-    def _features_cnn(self,model, seq):
+    def _features(self, model, seq):
         features = model(seq)
         return features
 
@@ -76,7 +80,6 @@ class HDF5Dataset(Dataset):
         for file_name in file_list:
             segments = sets[group][file_name]
             segments = np.array(segments)
-            # segments = torch.tensor(segments, dtype=torch.float32, device=self.device)
             frame_length = self._frame_lengths[file_name]
 
 
@@ -96,6 +99,7 @@ class HDF5Dataset(Dataset):
 
                     # mean of the sequence
                     seq = np.mean(seq)
+                    seq = np.round(seq)
 
                     # Append to labels
                     self.labels = np.append(self.labels, seq)
@@ -104,7 +108,6 @@ class HDF5Dataset(Dataset):
             i += 1
             print (f'Creating {group} labels {i}/{len(sets[group])}', end='\r')
         print()
-
 
     def create_data(self):
         label_file_path = self.file_path + '/sets.json'

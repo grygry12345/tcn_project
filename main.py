@@ -1,13 +1,12 @@
 from dataset import HDF5Dataset
 import trainer as t
 import eval
-from model import CNN, Linear
+from model import ResCNN, Linear, BasicLinear
 
 from torch.utils.tensorboard import SummaryWriter
 import torch
 from torch.utils.data import DataLoader
 import os
-import csv
 import itertools
 import torch.nn as nn
 
@@ -15,14 +14,14 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
     batch_size = 64
     epochs = 100
+    lr = [1e-3]
     
-    step_size = [1]
-    frame_count = [4]
-    
-    lr = [1e-3, 1e-4, 1e-5, 1e-6]
-    
-    filter_size_feature = [2, 4, 8, 16]
-    filter_size_model = [2, 4, 8, 16]
+    step_size = [4]
+    frame_count = [16]
+    num_layers = [1]
+    filter_size_feature = [8, 16, 32, 64, 128]
+    filter_size_model = [16]
+    use_conv = [True, False]
     
 
     # get combinations of parameters lr, step_size, frame_count, filter_size
@@ -37,40 +36,36 @@ if __name__ == '__main__':
     frame_count_prev = 0
     step_size_prev = 0
 
-    lr_step_size_frame_filter = list(itertools.product(frame_count, step_size, lr, filter_size_feature, filter_size_model))
+    lr_step_size_frame_filter = list(itertools.product(num_layers, use_conv, frame_count, step_size, lr, filter_size_feature, filter_size_model))
     
-    # create csv file for storing results
-    results_file = open('results.csv', 'w')
-    results_writer = csv.writer(results_file)
-
-    # write header
-    results_writer.writerow(['lr', 'step_size', 'frame_count','filter_size_feature', 'filter_size_model', \
-                            'acc', \
-                            'f1', \
-                            'precision',\
-                            'recall'])
-    
+      
     # if runs folder does not exist, create it
     if not os.path.exists('runs'):
         os.makedirs('runs')
     
     # iterate through all combinations
-    for frame_count, step_size, lr, filter_size_feature, filter_size_model in lr_step_size_frame_filter:
+    for num_layers, use_conv, frame_count, step_size, lr, filter_size_feature, filter_size_model in lr_step_size_frame_filter:
                 
-        writer = SummaryWriter(f"runs/frame_count_{frame_count}_step_size_{step_size}_lr_{lr}_filter_size_feature_{filter_size_feature}_filter_size_model_{filter_size_model}")
-        feature_output = filter_size_feature * 2
-        model = Linear(num_input=(feature_output), hidden_size=filter_size_model).to(device)
-        model_feature = CNN(num_input=num_channel, hidden_size=filter_size_feature).to(device)
+        writer = SummaryWriter(f"runs/frame_count-{frame_count}_step_size-{step_size}_lr-{lr}_filter_size_feature-{filter_size_feature}_filter_size_model-{filter_size_model}")
         
+        feature_output = filter_size_feature
+        
+        if use_conv == True:
+            model_feature = ResCNN(num_input=num_channel, hidden_size=filter_size_feature, num_layers=num_layers).to(device)
+        else:
+            model_feature = BasicLinear(num_input=num_channel, hidden_size=filter_size_feature).to(device)
+        
+        
+        model = Linear(num_input=(feature_output), hidden_size=filter_size_model, num_output=num_channel).to(device)
         if frame_count_prev == frame_count and step_size_prev == step_size and filter_size_feature == filter_size_feature_prev:
             print('Same parameters "frame_size" and "step_size" skipping')
         else:
             train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size, \
-                                model_feature=model_feature)
+                                use_baseline=use_conv, model_feature=model_feature)
             val = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count, step_size=step_size, \
-                                model_feature=model_feature)
+                                use_baseline=use_conv, model_feature=model_feature)
             test = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count, step_size=step_size, \
-                                model_feature=model_feature)
+                                use_baseline=use_conv, model_feature=model_feature)
 
             train.create_data()
             train.create_labels()
@@ -105,20 +100,17 @@ if __name__ == '__main__':
         precision = round(precision, 2) * 100
         recall = round(recall, 2) * 100
 
-        # append results in csv file
-        results_writer.writerow([lr, step_size, frame_count, filter_size_feature, filter_size_model,\
-                                acc, \
-                                f1, \
-                                precision, \
-                                recall])
+        # Save hyperparameters
+        writer.add_hparams({"num_layers": num_layers, "use_conv": use_conv, "frame_count": frame_count, "step_size": step_size, "lr": lr, "filter_size_feature": filter_size_feature, "filter_size_model": filter_size_model}, \
+                            {"acc": acc, "f1": f1, "precision": precision, "recall": recall})
+
+
+
 
         i += 1
         print(f"{i}/{len(lr_step_size_frame_filter)} combinations")
         
-        print(f"acc: {acc}")
-        print(f"f1: {f1}")
-        print(f"precision: {precision}")
-        print(f"recall: {recall}")
+        print(f"acc: {acc}, f1: {f1}, precision: {precision}, recall: {recall}")
 
         
         frame_count_prev = frame_count
@@ -129,4 +121,4 @@ if __name__ == '__main__':
         filter_size_feature_prev = filter_size_feature
 
     
-    results_file.close()
+    # results_file.close()
