@@ -8,7 +8,7 @@ from model import BasicLinear
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', data_path="data/roi_mouth", transform=None, group='train', \
     frame_count: int = 3, step_size: int = 1, device = 'cpu', 
-    model_feature = None, cnn_hidden_size: int = 4, use_baseline = True):
+    model_feature = None, cnn_hidden_size: int = 4):
         self.file_path = file_path
         self.transform = transform
         self.group = group
@@ -22,8 +22,6 @@ class HDF5Dataset(Dataset):
         
         self.cnn_hidden_size = cnn_hidden_size
         self.model_feature = model_feature
-        self.use_baseline = use_baseline
-
     def __len__(self):
         return len(self.data)
     
