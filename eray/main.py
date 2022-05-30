@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import os
-import model2 as m2
+import model as m
 from dataset import HDF5Dataset
 import trainer as t
 import eval
@@ -15,11 +15,11 @@ if __name__ == '__main__':
     print(device)
     batch_size = 16
     epochs = 30
-    lr = [1e-3, 1e-6]
-    step_size = [5 , 10, 20]
+    lr = [1e-3]
+    step_size = [2,4]
     frame_count = [16]
     hidden_size = [64]
-    number_layers = [2]
+    number_layers = [1,2]
     
     # get combinations of parameters lr, step_size, frame_count, filter_size
     lr_step_size_frame_filter = list(itertools.product(frame_count, step_size, lr, hidden_size, number_layers))
@@ -47,33 +47,42 @@ if __name__ == '__main__':
         if frame_count_prev == frame_count and step_size_prev == step_size:
             print('Same parameters "frame_size" and "step_size" skipping')
         else:
-            
+            train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count,
+                                step_size=step_size)
+            val = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count,
+                              step_size=step_size)
+            test = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count,
+                               step_size=step_size)
 
-            train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size)
-            val = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count, step_size=step_size)
-            test = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count, step_size=step_size)
+            if not os.path.exists(f'data/var'):
+                os.mkdir("data/var")
+                train.create_data()
+                train.create_labels()
+                val.create_data()
+                val.create_labels()
+                test.create_data()
+                test.create_labels()
 
-            train.create_data()
-            train.create_labels()
-            val.create_data()
-            val.create_labels()
-            test.create_data()
-            test.create_labels()
+            else:
+                train.load_variables("data/var/","vartrain_data","vartrain_label")
+                val.load_variables("data/var/","varval_data","varval_label")
+                test.load_variables("data/var/","vartest_data","vartest_label")
 
             training_loader = DataLoader(train, batch_size=batch_size, shuffle=True)
             val_loader = DataLoader(val, batch_size=batch_size, shuffle=True)
-            test_loader = DataLoader(test,batch_size=batch_size, shuffle=True)
+            test_loader = DataLoader(test,batch_size=batch_size, shuffle=False)
             
 
         # if model is not already created, create model
         if not os.path.exists(f'new_var'):
             print('Creating new model')
-            model = m2.CNN(output_dim=num_class).to(device)
+            model = m.Net(output_dim=num_class).to(device)
             loss_fn = nn.CrossEntropyLoss()
+            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True, patience=5)
             optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
             trainer = t.Trainer(model, loss_fn, optimizer, epochs=epochs, train_dataloader=training_loader, \
-                                val_dataloader=val_loader, test_dataloader=test_loader, device=device, writer=writer)
+                                val_dataloader=val_loader, test_dataloader=test_loader, device=device, writer=writer,lr=lr_scheduler)
             trainer.train()
             print('Training complete.')
         else:

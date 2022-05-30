@@ -4,9 +4,10 @@ import h5py
 import json
 import numpy as np
 
+
 class HDF5Dataset(Dataset):
     def __init__(self, file_path='data', data_path="data/roi_mouth", transform=None, group='train', \
-    frame_count: int = 3, step_size: int = 1, device = 'cpu'):
+                 frame_count: int = 3, step_size: int = 1, device='cpu'):
         self.file_path = file_path
         self.transform = transform
         self.group = group
@@ -20,9 +21,9 @@ class HDF5Dataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, idx):
-        sample = self.data[idx] 
+        sample = self.data[idx]
         label = self.labels[idx]
         if self.transform:
             sample = self.transform(sample)
@@ -41,38 +42,36 @@ class HDF5Dataset(Dataset):
                 d = d.squeeze()
                 d_len = d.shape[0]
 
-                frames=[]
+                frames = []
                 for frame in range(0, d_len, self.step_size):
 
                     if frame + self.frame_count > d_len:
                         break
                     else:
-                        seq = d[frame:frame+self.frame_count]
+                        seq = d[frame:frame + self.frame_count]
 
                         if self.data is None:
                             self.data = seq.clone()
                             frames.append(seq)
                         else:
                             frames.append(seq)
-                self.data=torch.stack(frames)
+                self.data = torch.stack(frames)
             self._frame_lengths[file_name] = d_len
             frame_lengths.append(d_len)
 
             # progress bar
             i += 1
-            print (f'Creating {group} data {i}/{len(sets[group])}', end='\r')
+            print(f'Creating {group} data {i}/{len(sets[group])}', end='\r')
         print()
         print(f'The number of {group} labels {len(frames)}', end='\r')
         print()
         print(f'The average time of {group} frame {np.mean(frame_lengths)}', end='\r')
         print()
-        
-
 
     def _concatenate_labels(self, sets, group):
         i = 0
         file_list = sets[group].keys()
-        no_speak=[]
+        no_speak = []
         frame_lengths = []
         for file_name in file_list:
             segments = sets[group][file_name]
@@ -80,7 +79,6 @@ class HDF5Dataset(Dataset):
             segments = torch.tensor(segments, dtype=torch.float32, device=self.device)
             frame_length = self._frame_lengths[file_name]
             frame_lengths.append(frame_length)
-
 
             if segments[0] == -1 and segments[1] == -1:
                 l = torch.zeros(frame_length, dtype=torch.float32, device=self.device)
@@ -91,12 +89,12 @@ class HDF5Dataset(Dataset):
                 end = int(segments[1] * 100)
                 l[start:end] = 1
 
-            labels=[]
+            labels = []
             for frame in range(0, frame_length, self.step_size):
                 if frame + self.frame_count > l.shape[0]:
                     break
                 else:
-                    seq = l[frame:frame+self.frame_count]
+                    seq = l[frame:frame + self.frame_count]
 
                     if self.labels is None:
                         self.labels = seq.clone()
@@ -104,10 +102,10 @@ class HDF5Dataset(Dataset):
                     else:
                         labels.append(seq)
             self.labels = torch.stack(labels)
-                
+
             # progress bar
             i += 1
-            print (f'Creating {group} labels {i}/{len(sets[group])}', end='\r')
+            print(f'Creating {group} labels {i}/{len(sets[group])}', end='\r')
         print()
         print(f'The number of {group} labels {len(labels)}', end='\r')
         print()
@@ -116,7 +114,7 @@ class HDF5Dataset(Dataset):
 
     def create_data(self):
         label_file_path = self.file_path + '/sets.json'
-        
+
         # assign file_names in folder using sets.json
         with open(label_file_path, 'r') as l:
             sets = json.load(l)
@@ -128,11 +126,9 @@ class HDF5Dataset(Dataset):
                 self._concatenate_frames(sets, 'test')
             else:
                 raise Exception('Invalid group')
-               
-    
+
     def create_labels(self):
         label_file_path = self.file_path + '/sets.json'
-
         # labels
         with open(label_file_path, 'r') as l:
             segments = json.load(l)
