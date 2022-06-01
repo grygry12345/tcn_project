@@ -16,12 +16,12 @@ if __name__ == '__main__':
     epochs = 100
     lr = [1e-3]
     
-    step_size = [4]
+    step_size = [8]
     frame_count = [16]
     num_layers = [1]
-    filter_size_feature = [8, 16, 32, 64, 128]
-    filter_size_model = [16]
-    use_conv = [True, False]
+    filter_size_feature = [4]
+    filter_size_model = [4]
+    use_conv = [True]
     
 
     # get combinations of parameters lr, step_size, frame_count, filter_size
@@ -61,11 +61,11 @@ if __name__ == '__main__':
             print('Same parameters "frame_size" and "step_size" skipping')
         else:
             train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size, \
-                                use_baseline=use_conv, model_feature=model_feature)
+                                model_feature=model_feature)
             val = HDF5Dataset(file_path='data', group='val', device=device, frame_count=frame_count, step_size=step_size, \
-                                use_baseline=use_conv, model_feature=model_feature)
+                                model_feature=model_feature)
             test = HDF5Dataset(file_path='data', group='test', device=device, frame_count=frame_count, step_size=step_size, \
-                                use_baseline=use_conv, model_feature=model_feature)
+                                model_feature=model_feature)
 
             train.create_data()
             train.create_labels()
@@ -91,8 +91,9 @@ if __name__ == '__main__':
 
 
         # Evaluate model on test data
-        evaluation = eval.Eval(model, test_loader, device)
+        evaluation = eval.Eval(model, test_loader, device, frame_count=frame_count)
         acc, f1, precision, recall = evaluation.eval()
+        evaluation.predict_show(start=0, end=100)
 
         # round to 2 decimal places
         acc = round(acc, 2) * 100

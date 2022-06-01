@@ -22,6 +22,7 @@ class Trainer(nn.Module):
         train_loss, train_correct = 0.0, 0.0
         num_batches = len(self.train_dataloader)
         size = len(self.train_dataloader.dataset)
+        
         self.model.train()
         for _, (X, y) in enumerate(self.train_dataloader):
             X = X.to(self.device)
@@ -32,12 +33,15 @@ class Trainer(nn.Module):
             pred = self.model(X)
             loss = self.loss_fn(pred, y)
 
+
             # Backpropagation
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
             pred_target = pred.argmax(1)
+
+
             train_correct += torch.sum(pred_target == y).item()
             train_loss += loss.item()
         
@@ -51,8 +55,9 @@ class Trainer(nn.Module):
         
         size = len(self.val_dataloader.dataset)
         num_batches = len(self.val_dataloader)
-        self.model.eval()
         val_loss, val_correct = 0, 0
+
+        self.model.eval()
         with torch.no_grad():
             for _ , (X, y) in enumerate(self.val_dataloader):
                 X = X.to(self.device)
