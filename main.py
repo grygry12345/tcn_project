@@ -19,8 +19,8 @@ if __name__ == '__main__':
     step_size = [8]
     frame_count = [16]
     num_layers = [1]
-    filter_size_feature = [4]
-    filter_size_model = [4]
+    filter_size_feature = [16]
+    filter_size_model = [16]
     use_conv = [True]
     
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         # Evaluate model on test data
         evaluation = eval.Eval(model, test_loader, device, frame_count=frame_count)
         acc, f1, precision, recall = evaluation.eval()
-        evaluation.predict_show(start=0, end=100)
+        evaluation.show_best_worst_clips()
 
         # round to 2 decimal places
         acc = round(acc, 2) * 100
