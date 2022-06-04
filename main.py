@@ -18,10 +18,10 @@ if __name__ == '__main__':
     
     step_size = [8]
     frame_count = [16]
+    channel_size_feature = [64]
+    channel_size_model = [16]
     num_layers = [1]
-    filter_size_feature = [16]
-    filter_size_model = [16]
-    use_conv = [True]
+    use_conv = [False]
     
 
     # get combinations of parameters lr, step_size, frame_count, filter_size
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     frame_count_prev = 0
     step_size_prev = 0
 
-    lr_step_size_frame_filter = list(itertools.product(num_layers, use_conv, frame_count, step_size, lr, filter_size_feature, filter_size_model))
+    lr_step_size_frame_filter = list(itertools.product(num_layers, use_conv, frame_count, step_size, lr, channel_size_feature, channel_size_model))
     
       
     # if runs folder does not exist, create it
@@ -44,20 +44,20 @@ if __name__ == '__main__':
         os.makedirs('runs')
     
     # iterate through all combinations
-    for num_layers, use_conv, frame_count, step_size, lr, filter_size_feature, filter_size_model in lr_step_size_frame_filter:
+    for num_layers, use_conv, frame_count, step_size, lr, channel_size_feature, channel_size_model in lr_step_size_frame_filter:
                 
-        writer = SummaryWriter(f"runs/frame_count-{frame_count}_step_size-{step_size}_lr-{lr}_filter_size_feature-{filter_size_feature}_filter_size_model-{filter_size_model}")
+        writer = SummaryWriter(f"runs/frame_count-{frame_count}_step_size-{step_size}_lr-{lr}_filter_size_feature-{channel_size_feature}_filter_size_model-{channel_size_model}")
         
-        feature_output = filter_size_feature
+        feature_output = channel_size_feature
         
         if use_conv == True:
-            model_feature = ResCNN(num_input=num_channel, hidden_size=filter_size_feature, num_layers=num_layers).to(device)
+            model_feature = ResCNN(num_input=num_channel, hidden_size=channel_size_feature, num_layers=num_layers).to(device)
         else:
-            model_feature = BasicLinear(num_input=num_channel, hidden_size=filter_size_feature).to(device)
+            model_feature = BasicLinear(num_input=num_channel, hidden_size=channel_size_feature).to(device)
         
         
-        model = Linear(num_input=(feature_output), hidden_size=filter_size_model, num_output=num_channel).to(device)
-        if frame_count_prev == frame_count and step_size_prev == step_size and filter_size_feature == filter_size_feature_prev:
+        model = Linear(num_input=(feature_output), hidden_size=channel_size_model, num_output=num_channel).to(device)
+        if frame_count_prev == frame_count and step_size_prev == step_size and channel_size_feature == filter_size_feature_prev:
             print('Same parameters "frame_size" and "step_size" skipping')
         else:
             train = HDF5Dataset(file_path='data', group='train', device=device, frame_count=frame_count, step_size=step_size, \
@@ -102,7 +102,7 @@ if __name__ == '__main__':
         recall = round(recall, 2) * 100
 
         # Save hyperparameters
-        writer.add_hparams({"num_layers": num_layers, "use_conv": use_conv, "frame_count": frame_count, "step_size": step_size, "lr": lr, "filter_size_feature": filter_size_feature, "filter_size_model": filter_size_model}, \
+        writer.add_hparams({"num_layers": num_layers, "use_conv": use_conv, "frame_count": frame_count, "step_size": step_size, "lr": lr, "filter_size_feature": channel_size_feature, "filter_size_model": channel_size_model}, \
                             {"acc": acc, "f1": f1, "precision": precision, "recall": recall})
 
 
@@ -118,8 +118,8 @@ if __name__ == '__main__':
         step_size_prev = step_size
         
         lr_prev = lr
-        filter_size_model_prev = filter_size_model
-        filter_size_feature_prev = filter_size_feature
+        filter_size_model_prev = channel_size_model
+        filter_size_feature_prev = channel_size_feature
 
     
     # results_file.close()
